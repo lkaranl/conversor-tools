@@ -14,7 +14,8 @@ async fn main() {
         .nest("/api", api::router(app_state))
         .fallback_service(ServeDir::new("static"));
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    // Alterado para 0.0.0.0 para aceitar conexões de qualquer IP na rede
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     println!("Servidor rodando em http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
