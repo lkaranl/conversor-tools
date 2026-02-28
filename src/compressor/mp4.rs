@@ -17,6 +17,7 @@ pub async fn compress(input: &str, output: &str, level: u8) -> Result<(), String
             "-i", input,
             "-vcodec", "libx264",
             "-crf", crf,
+            "-threads", "0",
             "-preset", "fast",
             "-movflags", "+faststart", // otimiza para streaming progressivo
             output,
