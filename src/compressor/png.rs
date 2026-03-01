@@ -9,26 +9,36 @@
 /// - 1 (Leve): 65–80 — excelente qualidade, boa redução (~30-50%)
 /// - 2 (Média): 40–60 — equilíbrio entre qualidade e tamanho (~50-65%)
 /// - 3 (Alta):  15–35 — máxima redução, qualidade aceitável (~65-80%)
+/// - 4 (Extrema): 5-15 — dane-se a qualidade, menor tamanho possível
 ///
 /// **Requisito**: `pngquant` instalado no servidor (`sudo apt install pngquant`).
 pub async fn compress(input: &str, output: &str, level: u8) -> Result<(), String> {
     let quality = match level {
         1 => "65-80",
         3 => "15-35",
+        4 => "0-10",
         _ => "40-60",
     };
 
-    println!("[PNG] Iniciando compressão com pngquant (qualidade: {})...", quality);
+    let is_extreme = level == 4;
+
+    println!("[PNG] Iniciando compressão com pngquant (qualidade: {}{})...", quality, if is_extreme { " + posterize" } else { "" });
+
+    let mut args: Vec<&str> = vec![
+        "--quality", quality,
+        "--force",
+        "--output", output,
+        "--speed", "1",
+        "--strip",
+    ];
+    // Posterize reduz bits por canal, achatando gradientes brutalmente
+    if is_extreme {
+        args.extend_from_slice(&["--posterize", "4"]);
+    }
+    args.push(input);
 
     let result = tokio::process::Command::new("pngquant")
-        .args([
-            "--quality", quality,
-            "--force",
-            "--output", output,
-            "--speed", "1",   // velocidade mínima = melhor compressão
-            "--strip",        // remove metadados desnecessários
-            input,
-        ])
+        .args(&args)
         .output()
         .await;
 

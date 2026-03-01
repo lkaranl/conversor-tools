@@ -49,7 +49,7 @@ async fn upload_mp4(State(state): State<AppState>, mut multipart: Multipart) -> 
         if name == "compression_level" {
             if let Ok(Some(chunk)) = field.chunk().await {
                 if let Ok(val_str) = std::str::from_utf8(&chunk) {
-                    compression_level = val_str.trim().parse().unwrap_or(2).clamp(1, 3);
+                    compression_level = val_str.trim().parse().unwrap_or(2).clamp(1, 4);
                 }
             }
             continue;
@@ -117,6 +117,7 @@ async fn upload_mp4(State(state): State<AppState>, mut multipart: Multipart) -> 
         let level_name = match compression_level {
             1 => "Leve",
             3 => "Alta",
+            4 => "Extrema",
             _ => "Média",
         };
 
@@ -179,7 +180,7 @@ async fn upload_png(State(state): State<AppState>, mut multipart: Multipart) -> 
         if name == "compression_level" {
             if let Ok(Some(chunk)) = field.chunk().await {
                 if let Ok(val_str) = std::str::from_utf8(&chunk) {
-                    compression_level = val_str.trim().parse().unwrap_or(2).clamp(1, 3);
+                    compression_level = val_str.trim().parse().unwrap_or(2).clamp(1, 4);
                 }
             }
             continue;
@@ -245,6 +246,7 @@ async fn upload_png(State(state): State<AppState>, mut multipart: Multipart) -> 
         let level_name = match compression_level {
             1 => "Leve",
             3 => "Alta",
+            4 => "Extrema",
             _ => "Média",
         };
 

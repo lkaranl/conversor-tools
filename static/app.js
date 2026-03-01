@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const pillBtns = document.querySelectorAll('.pill-btn');
     const mediaCards = document.querySelectorAll('.media-card:not(.coming-soon)');
 
-    const levelNames = { 1: 'Leve', 2: 'Média', 3: 'Alta' };
+    const levelNames = { 1: 'Leve', 2: 'Média', 3: 'Alta', 4: 'Extrema' };
     const hints = {
         mp4: 'Aceita arquivos .mp4',
         mp3: 'Aceita arquivos .mp3',
