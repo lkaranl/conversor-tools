@@ -9,7 +9,7 @@ use axum::{
     Router,
 };
 use serde_json::json;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path as StdPath};
 use tokio::fs::{File, create_dir_all};
 use tokio::io::AsyncWriteExt;
 use tokio_util::io::ReaderStream;
@@ -113,7 +113,27 @@ async fn upload_mp4(State(state): State<AppState>, mut multipart: Multipart) -> 
     let temp_path = saved_path;
     let original_filename = saved_original;
     tokio::spawn(async move {
-        let out_path = format!("uploads/compressed_{}_{}", id_clone, original_filename);
+        // Obter nome de nivel
+        let level_name = match compression_level {
+            1 => "Leve",
+            3 => "Alta",
+            _ => "Média",
+        };
+
+        // Formatar no padrão antigo ou pegar extensao original
+        let ext = StdPath::new(&original_filename)
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("mp4");
+        
+        let file_stem = StdPath::new(&original_filename)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("video");
+
+        let better_filename = format!("{}_{}.{}", file_stem, level_name, ext);
+        let out_path = format!("uploads/{}_{}", id_clone, better_filename);
+
         let result = compress_media(
             MediaType::Mp4,
             &temp_path.to_string_lossy(),
@@ -221,7 +241,27 @@ async fn upload_png(State(state): State<AppState>, mut multipart: Multipart) -> 
     let temp_path = saved_path;
     let original_filename = saved_original;
     tokio::spawn(async move {
-        let out_path = format!("uploads/compressed_{}_{}", id_clone, original_filename);
+        // Obter nome de nivel
+        let level_name = match compression_level {
+            1 => "Leve",
+            3 => "Alta",
+            _ => "Média",
+        };
+
+        // Formatar no padrão antigo ou pegar extensao original
+        let ext = StdPath::new(&original_filename)
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("png");
+        
+        let file_stem = StdPath::new(&original_filename)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("image");
+
+        let better_filename = format!("{}_{}.{}", file_stem, level_name, ext);
+        let out_path = format!("uploads/{}_{}", id_clone, better_filename);
+
         let result = compress_media(
             MediaType::Png,
             &temp_path.to_string_lossy(),
@@ -263,12 +303,32 @@ async fn download_file(State(state): State<AppState>, Path(id): Path<String>) ->
     if let Some(job) = job {
         if let Some(compressed) = job.compressed_filename {
             if let Ok(file) = File::open(&compressed).await {
+                // Pegar apenas o nome do arquivo ignorando a pasta uploads e id
+                let file_name = StdPath::new(&compressed)
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("download");
+                
+                // Limpar regex / id do nome pra ficar bonitinho
+                // O nome tá formatado como uploads/{id}_{nome_nivel}.{ext}, vamos arrancar id_
+                let clean_name = if file_name.starts_with(&format!("{}_", id)) {
+                    &file_name[id.len() + 1..]
+                } else {
+                    file_name
+                };
+
+                let content_type = if clean_name.ends_with(".png") {
+                    "image/png"
+                } else {
+                    "video/mp4"
+                };
+
                 let stream = ReaderStream::new(file);
                 let body = Body::from_stream(stream);
                 return Response::builder()
                     .status(StatusCode::OK)
-                    .header(header::CONTENT_TYPE, "video/mp4")
-                    .header(header::CONTENT_DISPOSITION, format!("attachment; filename=\"compressed_{}\"", job.filename))
+                    .header(header::CONTENT_TYPE, content_type)
+                    .header(header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", clean_name))
                     .body(body)
                     .unwrap();
             }

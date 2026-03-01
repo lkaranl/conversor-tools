@@ -291,16 +291,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function toggleUI(disabled) {
-        pillBtns.forEach(btn => {
-            btn.disabled = disabled;
-            btn.style.opacity = disabled ? '0.5' : '1';
-            btn.style.cursor = disabled ? 'not-allowed' : 'pointer';
+        // Obter os containers para adicionar efeito de "desativado" em bloco
+        const typeSection = document.querySelector('.media-type-section');
+        const compSection = document.querySelector('.compression-section');
+
+        [typeSection, compSection].forEach(sec => {
+            if (!sec) return;
+            sec.style.pointerEvents = disabled ? 'none' : 'auto';
+            sec.style.opacity = disabled ? '0.4' : '1';
+            // Para mostrar o cursor correto sobre a área desativada (pointer-events: none no children anula click)
+            sec.style.cursor = disabled ? 'not-allowed' : 'auto';
         });
-        mediaCards.forEach(card => {
-            card.style.pointerEvents = disabled ? 'none' : 'auto';
-            card.style.opacity = disabled ? '0.5' : '1';
-        });
+
+        // Garantir que as pílulas e cards internos fiquem inertes independente do pai
+        pillBtns.forEach(btn => btn.disabled = disabled);
+
         changeFileBtn.disabled = disabled;
+        changeFileBtn.style.opacity = disabled ? '0.4' : '1';
+        changeFileBtn.style.cursor = disabled ? 'not-allowed' : 'pointer';
     }
 
     resetBtn.addEventListener('click', () => {
@@ -310,6 +318,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     retryLevelBtn.addEventListener('click', () => {
         // Volta pra tela de upload, mas não limpa o pendingFile
+        statusTitle.textContent = 'Processando arquivo...'; // reset texto padrão
+        statusDesc.textContent = '';
         showSection(uploadSection);
     });
 });
