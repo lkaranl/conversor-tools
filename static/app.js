@@ -90,6 +90,10 @@ document.addEventListener('DOMContentLoaded', () => {
             errorMsg.textContent = 'Por favor, selecione um arquivo MP4 válido.';
             return;
         }
+        if (selectedType === 'png' && ext !== 'png') {
+            errorMsg.textContent = 'Por favor, selecione um arquivo PNG válido.';
+            return;
+        }
 
         pendingFile = file;
         showFilePreview(file);
