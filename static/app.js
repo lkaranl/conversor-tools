@@ -265,9 +265,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const baseName = nameParts.join('.');
         const betterFilename = `${baseName}_${currentLevelName}.${ext}`;
 
-        // Reativa os controles para quando o usuário clicar em "Novo arquivo"
-        // ou "Tentar outro nível" e voltar para a tela inicial
-        resetCompressBtnUI();
+        // Restaura botão de Comprimir mas mantém opções (Níveis) bloqueados na tela de fundo
+        resetCompressBtnUI(true);
 
         finalFilename.textContent = betterFilename;
         downloadBtn.href = downloadUrl;
@@ -277,14 +276,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleError(msg) {
         showSection(uploadSection);
         errorMsg.textContent = `⚠ ${msg}`;
-        // Reativa os controles após um erro
-        resetCompressBtnUI();
+        // Reativa os controles, pois como é um erro, a pessoa precisa poder tentar de novo imediatamente
+        resetCompressBtnUI(false);
     }
 
-    // Helper para restaurar o visual do botão Comprimir e desbloquear a UI
-    function resetCompressBtnUI() {
+    // Helper para restaurar o visual do botão Comprimir. 
+    // keepLevelsLocked mantém a seção de configurações cinza/inativa enquanto o usuário está na tela de resultado
+    function resetCompressBtnUI(keepLevelsLocked = false) {
         compressBtn.disabled = false;
-        toggleUI(false);
+        toggleUI(false, keepLevelsLocked);
         compressBtn.innerHTML = `
             <svg style="width:16px;height:16px;vertical-align:-3px;margin-right:6px" viewBox="0 0 24 24"
                 fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
@@ -300,29 +300,32 @@ document.addEventListener('DOMContentLoaded', () => {
         section.classList.remove('hidden');
     }
 
-    function toggleUI(disabled) {
+    function toggleUI(disabled, keepLevelsLocked = false) {
         // Obter os containers para adicionar efeito de "desativado" em bloco
         const typeSection = document.querySelector('.media-type-section');
         const compSection = document.querySelector('.compression-section');
 
+        const stateForLevels = disabled || keepLevelsLocked;
+
         [typeSection, compSection].forEach(sec => {
             if (!sec) return;
-            sec.style.pointerEvents = disabled ? 'none' : 'auto';
-            sec.style.opacity = disabled ? '0.4' : '1';
-            // Para mostrar o cursor correto sobre a área desativada (pointer-events: none no children anula click)
-            sec.style.cursor = disabled ? 'not-allowed' : 'auto';
+            sec.style.pointerEvents = stateForLevels ? 'none' : 'auto';
+            sec.style.opacity = stateForLevels ? '0.4' : '1';
+            // Para mostrar o cursor correto sobre a área desativada
+            sec.style.cursor = stateForLevels ? 'not-allowed' : 'auto';
         });
 
         // Garantir que as pílulas e cards internos fiquem inertes independente do pai
-        pillBtns.forEach(btn => btn.disabled = disabled);
+        pillBtns.forEach(btn => btn.disabled = stateForLevels);
 
-        changeFileBtn.disabled = disabled;
+        changeFileBtn.disabled = disabled; // O botão de trocar arquivo é liberado pelo `toggleUI(false)` basico
         changeFileBtn.style.opacity = disabled ? '0.4' : '1';
         changeFileBtn.style.cursor = disabled ? 'not-allowed' : 'pointer';
     }
 
     resetBtn.addEventListener('click', () => {
         clearFile();
+        toggleUI(false); // Libera tudo para o próximo arquivo novo
         showSection(uploadSection);
     });
 
@@ -330,6 +333,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Volta pra tela de upload, mas não limpa o pendingFile
         statusTitle.textContent = 'Processando arquivo...'; // reset texto padrão
         statusDesc.textContent = '';
+
+        // Agora sim destravamos a UI para que ele possa clicar nos níveis:
+        toggleUI(false);
+
         showSection(uploadSection);
     });
 });
