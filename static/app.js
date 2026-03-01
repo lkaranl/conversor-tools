@@ -96,6 +96,10 @@ document.addEventListener('DOMContentLoaded', () => {
             errorMsg.textContent = 'Por favor, selecione um arquivo PNG válido.';
             return;
         }
+        if (selectedType === 'jpeg' && ext !== 'jpeg' && ext !== 'jpg') {
+            errorMsg.textContent = 'Por favor, selecione um arquivo JPEG (.jpg ou .jpeg) válido.';
+            return;
+        }
 
         pendingFile = file;
         showFilePreview(file);

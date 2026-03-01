@@ -25,6 +25,10 @@ pub fn router(state: AppState) -> Router {
             "/compress/png",
             post(upload_png).layer(DefaultBodyLimit::disable()),
         )
+        .route(
+            "/compress/jpeg",
+            post(upload_jpeg).layer(DefaultBodyLimit::disable()),
+        )
         .route("/status/{id}", get(job_status))
         .route("/download/{id}", get(download_file))
         .with_state(state)
@@ -289,6 +293,132 @@ async fn upload_png(State(state): State<AppState>, mut multipart: Multipart) -> 
     (StatusCode::ACCEPTED, Json(json!({"id": id}))).into_response()
 }
 
+async fn upload_jpeg(State(state): State<AppState>, mut multipart: Multipart) -> impl IntoResponse {
+    let id = Uuid::new_v4().to_string();
+    let _ = create_dir_all("uploads").await;
+
+    let mut compression_level: u8 = 2;
+    let mut found_file = false;
+    let mut saved_path = PathBuf::new();
+    let mut saved_filename = String::new();
+    let mut saved_original = String::new();
+
+    while let Some(mut field) = match multipart.next_field().await {
+        Ok(Some(f)) => Some(f),
+        _ => None,
+    } {
+        let name = field.name().unwrap_or("").to_string();
+
+        if name == "compression_level" {
+            if let Ok(Some(chunk)) = field.chunk().await {
+                if let Ok(val_str) = std::str::from_utf8(&chunk) {
+                    compression_level = val_str.trim().parse().unwrap_or(2).clamp(1, 4);
+                }
+            }
+            continue;
+        }
+
+        if name == "file" {
+            found_file = true;
+            let file_name = field.file_name().unwrap_or("image.jpg").to_string();
+            saved_original = file_name.clone();
+            saved_filename = file_name.clone();
+
+            let path = format!("uploads/{}_{}", id, file_name);
+            saved_path = PathBuf::from(&path);
+
+            let mut disk_file = match File::create(&saved_path).await {
+                Ok(f) => f,
+                Err(e) => return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": format!("Erro ao criar arquivo: {}", e)})),
+                ).into_response(),
+            };
+
+            while let Some(chunk) = match field.chunk().await {
+                Ok(c) => c,
+                Err(e) => return (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({"error": format!("Erro ao ler upload: {}", e)})),
+                ).into_response(),
+            } {
+                if let Err(e) = disk_file.write_all(&chunk).await {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({"error": format!("Erro ao escrever no disco: {}", e)})),
+                    ).into_response();
+                }
+            }
+        }
+    }
+
+    if !found_file {
+        return (StatusCode::BAD_REQUEST, Json(json!({"error": "Nenhum arquivo JPEG encontrado no envio."}))).into_response();
+    }
+
+    let mut s = state.write().await;
+    s.jobs.insert(
+        id.clone(),
+        crate::state::JobStatus {
+            id: id.clone(),
+            status: "processing".to_string(),
+            error: None,
+            filename: saved_filename,
+            compressed_filename: None,
+        },
+    );
+    drop(s);
+
+    let state_clone = state.clone();
+    let id_clone = id.clone();
+    let temp_path = saved_path;
+    let original_filename = saved_original;
+    tokio::spawn(async move {
+        let level_name = match compression_level {
+            1 => "Leve",
+            3 => "Alta",
+            4 => "Extrema",
+            _ => "Média",
+        };
+
+        let ext = StdPath::new(&original_filename)
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("jpg");
+        
+        let file_stem = StdPath::new(&original_filename)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("image");
+
+        let better_filename = format!("{}_{}.{}", file_stem, level_name, ext);
+        let out_path = format!("uploads/{}_{}", id_clone, better_filename);
+
+        let result = compress_media(
+            MediaType::Jpeg,
+            &temp_path.to_string_lossy(),
+            &out_path,
+            compression_level,
+        ).await;
+
+        let mut s = state_clone.write().await;
+        if let Some(job) = s.jobs.get_mut(&id_clone) {
+            match result {
+                Ok(_) => {
+                    job.status = "completed".to_string();
+                    job.compressed_filename = Some(out_path);
+                }
+                Err(e) => {
+                    job.status = "error".to_string();
+                    job.error = Some(e);
+                }
+            }
+        }
+    });
+
+    (StatusCode::ACCEPTED, Json(json!({"id": id}))).into_response()
+}
+
 async fn job_status(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
     let s = state.read().await;
     if let Some(job) = s.jobs.get(&id) {
@@ -321,6 +451,8 @@ async fn download_file(State(state): State<AppState>, Path(id): Path<String>) ->
 
                 let content_type = if clean_name.ends_with(".png") {
                     "image/png"
+                } else if clean_name.ends_with(".jpg") || clean_name.ends_with(".jpeg") {
+                    "image/jpeg"
                 } else {
                     "video/mp4"
                 };

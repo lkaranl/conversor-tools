@@ -7,19 +7,19 @@ Sua interface entrega a melhor experiência de usuário (UX) através de uma abo
 ## Funcionalidades Principais 🌟
 
 - **Compressão MP4 Otimizada:** Escolha o nível de compressão desejado. Suporta **aceleração GPU via AMD VAAPI** nativamente em servidores Linux (processamento brutalmente mais rápido para vídeos H.264).
-- **Compressão PNG Inteligente:** Não confia no zlib — usa nativamente **`pngquant`** para realizar quantização lossy com até 80% de redução mantendo ótima fidelidade visual.
+- **Compressão de Imagens Lossy (PNG/JPEG):** Não confia em ferramentas fracas. O conversor usa nativamente as bibliotecas maduras e dedicadas **`pngquant`** e **`jpegoptim`** para destruir metadados pesados e achatar matrizes de qualidade em até 80%, mantendo uma grande fidelidade visual (com base nos níveis).
 - **Nível "Extrema" (Panic Mode):** Um quarto nível de compressão destrutor de pixels. Feito para forçar o menor tamanho de bytes possível, esmagando a qualidade globalmente.
 - **API Resiliente:** Upload multithread, sistema de polling de jobs baseado em ID (`UUID`) não obstrutivo no frontend com Auto-Backoff para economizar requisições do servidor.
 - **Prevenção de Erros UX:** Bloqueia interações acidentais, reconecta sozinho se a rede cair durante a compressão e traduz falhas técnicas do `stderr` em português natural.
 
 ## Níveis de Compressão
 
-| Nível | MP4 (GPU VAAPI) | MP4 (CPU x264) | PNG (`pngquant`) |
-| --- | --- | --- | --- |
-| 🟢 **Leve** | Qualidade: Alta (QP 22) | CRF 22 (Preset Fast) | Visual: 65%~80% |
-| 🟡 **Média** | Qualidade: Normal (QP 28) | CRF 28 (Preset Fast) | Visual: 40%~60% |
-| 🔴 **Alta** | Qualidade: Baixa (QP 35) | CRF 35 (Preset Fast) | Visual: 15%~35% |
-| ⚫ **Extrema** | Dane-se a qualidade (Scale 0.5x, Audio 64k) | CRF 51 (Preset VerySlow, Scale 0.5x) | Qualidade 0~10 + Posterize brutal (Color Banding) |
+| Nível | MP4 (GPU VAAPI) | MP4 (CPU x264) | PNG (`pngquant`) | JPEG (`jpegoptim`) |
+| --- | --- | --- | --- | --- |
+| 🟢 **Leve** | Qualidade: Alta (QP 22) | CRF 22 (Preset Fast) | Visual: 65%~80% | Qualidade Alvo: 85% |
+| 🟡 **Média** | Qualidade: Normal (QP 28) | CRF 28 (Preset Fast) | Visual: 40%~60% | Qualidade Alvo: 65% |
+| 🔴 **Alta** | Qualidade: Baixa (QP 35) | CRF 35 (Preset Fast) | Visual: 15%~35% | Qualidade Alvo: 40% |
+| ⚫ **Extrema** | Dane-se a qualidade (Scale 0.5x, Audio 64k) | CRF 51 (Preset VerySlow, Scale 0.5x) | Qualidade 0~10 + Posterize brutal | Qualidade 15% + Strip Exaustivo |
 
 ---
 
@@ -31,7 +31,7 @@ Para que o conversor consiga realizar sua mágica, o backend depende fortemente 
 Rode o comando abaixo no terminal do seu servidor:
 ```bash
 sudo apt update
-sudo apt install -y ffmpeg pngquant
+sudo apt install -y ffmpeg pngquant jpegoptim
 ```
 
 **Para Aceleração GPU AMD (VAAPI):**
