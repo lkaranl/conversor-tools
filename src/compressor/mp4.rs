@@ -16,15 +16,17 @@ pub async fn compress(input: &str, output: &str, level: u8) -> Result<(), String
         _ => "28",
     };
 
-    // --- Tentativa 1: GPU AMD (h264_amf) ---
-    println!("[GPU] Tentando compressão com aceleração de hardware AMD (h264_amf)...");
+    // --- Tentativa 1: GPU AMD via VAAPI (h264_vaapi) ---
+    println!("[GPU] Tentando compressão com aceleração de hardware AMD via VAAPI (h264_vaapi)...");
 
     let gpu_result = tokio::process::Command::new("ffmpeg")
         .args([
             "-y",
+            "-vaapi_device", "/dev/dri/renderD128",
             "-i", input,
-            "-c:v", "h264_amf",
-            "-quality", quality,
+            "-vf", "format=nv12,hwupload",
+            "-c:v", "h264_vaapi",
+            "-qp", quality,
             "-threads", "0",
             "-movflags", "+faststart",
             output,
@@ -34,15 +36,15 @@ pub async fn compress(input: &str, output: &str, level: u8) -> Result<(), String
 
     match gpu_result {
         Ok(cmd) if cmd.status.success() => {
-            println!("[GPU] ✅ Compressão finalizada com sucesso usando GPU AMD (h264_amf)!");
+            println!("[GPU] ✅ Compressão finalizada com sucesso usando GPU AMD via VAAPI!");
             return Ok(());
         }
         Ok(cmd) => {
             let stderr = String::from_utf8_lossy(&cmd.stderr);
-            println!("[GPU] ⚠️  Falha ao usar h264_amf. Motivo: {}", stderr.lines().last().unwrap_or("desconhecido"));
+            println!("[GPU] ⚠️  Falha ao usar h264_vaapi. Motivo: {}", stderr.lines().last().unwrap_or("desconhecido"));
         }
         Err(e) => {
-            println!("[GPU] ⚠️  Não foi possível executar o FFmpeg com h264_amf: {}", e);
+            println!("[GPU] ⚠️  Não foi possível executar o FFmpeg com h264_vaapi: {}", e);
         }
     }
 
