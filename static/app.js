@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultSection = document.getElementById('result-section');
     const downloadBtn = document.getElementById('download-btn');
     const resetBtn = document.getElementById('reset-btn');
+    const retryLevelBtn = document.getElementById('retry-level-btn');
     const finalFilename = document.getElementById('final-filename');
     const statusTitle = document.getElementById('status-title');
     const statusDesc = document.getElementById('status-desc');
@@ -52,6 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Compression Pills ---
     pillBtns.forEach(btn => {
         btn.addEventListener('click', () => {
+            if (btn.disabled) return;
             pillBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             compressionLevel = parseInt(btn.dataset.level);
@@ -129,9 +131,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Upload com proteção de double-submit ---
     async function uploadFile(file) {
-        // Previne duplo clique
+        // Previne duplo clique e bloqueia UI
         compressBtn.disabled = true;
         compressBtn.textContent = 'Enviando...';
+        toggleUI(true);
 
         showSection(processingSection);
         statusTitle.textContent = 'Enviando arquivo...';
@@ -164,6 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             // Reativa o botão para o caso de voltar ao upload
             compressBtn.disabled = false;
+            toggleUI(false);
             compressBtn.innerHTML = `
                 <svg style="width:16px;height:16px;vertical-align:-3px;margin-right:6px" viewBox="0 0 24 24"
                     fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
@@ -262,15 +266,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         showSection(resultSection);
-        finalFilename.textContent = filename;
+
+        // Formata o novo nome do arquivo: ex "video_Leve.mp4"
+        const currentLevelName = levelNames[compressionLevel];
+        const nameParts = pendingFile.name.split('.');
+        const ext = nameParts.pop();
+        const baseName = nameParts.join('.');
+        const betterFilename = `${baseName}_${currentLevelName}.${ext}`;
+
+        finalFilename.textContent = betterFilename;
         downloadBtn.href = downloadUrl;
-        downloadBtn.setAttribute('download', `compressed_${filename}`);
+        downloadBtn.setAttribute('download', betterFilename);
     }
 
     function handleError(msg) {
         showSection(uploadSection);
         errorMsg.textContent = `⚠ ${msg}`;
-        fileInput.value = '';
+        // Não apaga o arquivo se deu erro, deixa o usuário tentar de novo mudando o nível
     }
 
     function showSection(section) {
@@ -278,8 +290,27 @@ document.addEventListener('DOMContentLoaded', () => {
         section.classList.remove('hidden');
     }
 
+    function toggleUI(disabled) {
+        pillBtns.forEach(btn => {
+            btn.disabled = disabled;
+            btn.style.opacity = disabled ? '0.5' : '1';
+            btn.style.cursor = disabled ? 'not-allowed' : 'pointer';
+        });
+        mediaCards.forEach(card => {
+            card.style.pointerEvents = disabled ? 'none' : 'auto';
+            card.style.opacity = disabled ? '0.5' : '1';
+        });
+        changeFileBtn.disabled = disabled;
+    }
+
     resetBtn.addEventListener('click', () => {
         clearFile();
         showSection(uploadSection);
     });
+
+    retryLevelBtn.addEventListener('click', () => {
+        // Volta pra tela de upload, mas não limpa o pendingFile
+        showSection(uploadSection);
+    });
 });
+
