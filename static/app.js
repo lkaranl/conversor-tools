@@ -127,7 +127,12 @@ document.addEventListener('DOMContentLoaded', () => {
         uploadFile(pendingFile);
     });
 
+    // --- Upload com proteção de double-submit ---
     async function uploadFile(file) {
+        // Previne duplo clique
+        compressBtn.disabled = true;
+        compressBtn.textContent = 'Enviando...';
+
         showSection(processingSection);
         statusTitle.textContent = 'Enviando arquivo...';
         statusDesc.textContent = file.name;
@@ -138,41 +143,127 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const endpoint = `/api/compress/${selectedType}`;
-            const response = await fetch(endpoint, { method: 'POST', body: formData });
-            if (!response.ok) {
-                const err = await response.json().catch(() => ({ error: response.statusText }));
-                throw new Error(err.error || 'Erro no servidor.');
+            let response;
+            try {
+                response = await fetch(endpoint, { method: 'POST', body: formData });
+            } catch (_) {
+                throw new Error('Não foi possível conectar ao servidor. Verifique sua conexão.');
             }
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error || `Erro ao enviar arquivo (código ${response.status}).`);
+            }
+
             const data = await response.json();
-            statusTitle.textContent = 'Comprimindo com FFmpeg...';
-            statusDesc.textContent = `Nível: ${levelNames[compressionLevel]}`;
-            pollStatus(data.id);
+            statusTitle.textContent = 'Comprimindo arquivo...';
+            statusDesc.textContent = `Nível: ${levelNames[compressionLevel]} — isso pode levar alguns instantes`;
+            pollStatus(data.id, 0);
+        } catch (e) {
+            handleError(e.message);
+        } finally {
+            // Reativa o botão para o caso de voltar ao upload
+            compressBtn.disabled = false;
+            compressBtn.innerHTML = `
+                <svg style="width:16px;height:16px;vertical-align:-3px;margin-right:6px" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <polyline points="8 17 12 21 16 17" />
+                    <line x1="12" y1="3" x2="12" y2="21" />
+                </svg>
+                Comprimir Agora`;
+        }
+    }
+
+    // --- Polling com timeout e backoff progressivo ---
+    // Tenta por até ~3 minutos com backoff de 1.5s → 3s → 5s
+    const MAX_POLLS = 80;
+
+    async function pollStatus(jobId, attempts) {
+        if (attempts >= MAX_POLLS) {
+            handleError(
+                'O processamento está demorando mais do que o esperado. ' +
+                'O arquivo pode ser grande demais ou o servidor está sobrecarregado. ' +
+                'Tente novamente com um arquivo menor.'
+            );
+            return;
+        }
+
+        // Backoff: começa rápido e vai desacelerando
+        const delay = attempts < 10 ? 1500 : attempts < 30 ? 3000 : 5000;
+
+        try {
+            let res;
+            try {
+                res = await fetch(`/api/status/${jobId}`);
+            } catch (_) {
+                // Erro de rede transitório — tenta de novo com delay maior
+                statusDesc.textContent = 'Reconectando ao servidor...';
+                setTimeout(() => pollStatus(jobId, attempts + 1), 5000);
+                return;
+            }
+
+            if (res.status === 404) {
+                handleError(
+                    'O job de compressão não foi encontrado. ' +
+                    'Provavelmente o servidor foi reiniciado durante o processo. ' +
+                    'Por favor, envie o arquivo novamente.'
+                );
+                return;
+            }
+
+            if (!res.ok) {
+                throw new Error(`Erro ao verificar status (código ${res.status}).`);
+            }
+
+            const job = await res.json();
+
+            if (job.status === 'completed') {
+                await showSuccess(job.id, job.filename);
+            } else if (job.status === 'error') {
+                // Humaniza erros técnicos do FFmpeg
+                const rawError = job.error || '';
+                const friendlyError = humanizeError(rawError);
+                handleError(friendlyError);
+            } else {
+                setTimeout(() => pollStatus(jobId, attempts + 1), delay);
+            }
         } catch (e) {
             handleError(e.message);
         }
     }
 
-    async function pollStatus(jobId) {
-        try {
-            const res = await fetch(`/api/status/${jobId}`);
-            if (!res.ok) throw new Error('Job não encontrado.');
-            const job = await res.json();
-            if (job.status === 'completed') {
-                showSuccess(job.id, job.filename);
-            } else if (job.status === 'error') {
-                handleError(job.error || 'Erro ao processar o arquivo.');
-            } else {
-                setTimeout(() => pollStatus(jobId), 1500);
-            }
-        } catch (e) {
-            handleError('A conexão com o servidor foi perdida.');
-        }
+    // --- Transforma erros técnicos em mensagens amigáveis ---
+    function humanizeError(raw) {
+        if (!raw) return 'Erro desconhecido ao processar o arquivo.';
+        if (raw.includes('No such file')) return 'O arquivo enviado não foi encontrado no servidor.';
+        if (raw.includes('Invalid data') || raw.includes('moov atom')) return 'O arquivo enviado está corrompido ou em formato inválido.';
+        if (raw.includes('Encoder not found')) return 'O encoder de vídeo não está disponível no servidor.';
+        if (raw.includes('Permission denied')) return 'O servidor não tem permissão para processar este arquivo.';
+        if (raw.includes('No space left')) return 'O servidor ficou sem espaço em disco durante a compressão.';
+        // Fallback: mostra apenas última linha (menos técnica)
+        const lastLine = raw.trim().split('\n').pop();
+        return `Falha na compressão: ${lastLine}`;
     }
 
-    function showSuccess(jobId, filename) {
+    // --- Sucesso: verifica disponibilidade do download antes de exibir ---
+    async function showSuccess(jobId, filename) {
+        const downloadUrl = `/api/download/${jobId}`;
+
+        // Verifica se o arquivo realmente está acessível antes de mostrar
+        try {
+            const check = await fetch(downloadUrl, { method: 'HEAD' });
+            if (!check.ok) {
+                handleError('A compressão foi concluída, mas o arquivo resultante não está disponível para download. Tente novamente.');
+                return;
+            }
+        } catch (_) {
+            // Se não conseguir verificar, ainda assim mostra (pode ser CORS/HEAD bloqueado)
+        }
+
         showSection(resultSection);
         finalFilename.textContent = filename;
-        downloadBtn.href = `/api/download/${jobId}`;
+        downloadBtn.href = downloadUrl;
         downloadBtn.setAttribute('download', `compressed_${filename}`);
     }
 
