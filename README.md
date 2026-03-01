@@ -1,6 +1,6 @@
-# MediaZip | Compressor de Mídia 🚀
+# Conversor-Tools | Compressor de Mídia 🚀
 
-O **MediaZip** é um compressor web de alta performance construído com **Rust (Axum)** no backend e **JavaScript vanilla + CSS Moderno** no frontend. Ele foca em extrair a máxima eficiência de compressão de arquivos (Video MP4 e Imagem PNG) usando processamento em segundo plano e, quando disponível, aceleração de hardware (GPU AMD) no Linux.
+O **Conversor-Tools** é um compressor web de alta performance construído com **Rust (Axum)** no backend e **JavaScript vanilla + CSS Moderno** no frontend. Ele foca em extrair a máxima eficiência de compressão de arquivos (Video MP4 e Imagem PNG) usando processamento em segundo plano e, quando disponível, aceleração de hardware (GPU AMD) no Linux.
 
 Sua interface entrega a melhor experiência de usuário (UX) através de uma abordagem "Glassmorphism" polida, com prevenções ativas de cliques duplos, upload resiliente e processamento assíncrono (polling).
 
