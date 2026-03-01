@@ -164,18 +164,9 @@ document.addEventListener('DOMContentLoaded', () => {
             pollStatus(data.id, 0);
         } catch (e) {
             handleError(e.message);
-        } finally {
-            // Reativa o botão para o caso de voltar ao upload
-            compressBtn.disabled = false;
-            toggleUI(false);
-            compressBtn.innerHTML = `
-                <svg style="width:16px;height:16px;vertical-align:-3px;margin-right:6px" viewBox="0 0 24 24"
-                    fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
-                    stroke-linejoin="round">
-                    <polyline points="8 17 12 21 16 17" />
-                    <line x1="12" y1="3" x2="12" y2="21" />
-                </svg>
-                Comprimir Agora`;
+            // O desbloqueio da UI (toggleUI(false) e reset do botão)
+            // foi movido para showSuccess() e handleError() para garantir
+            // que os controles continuem bloqueados durante o polling.
         }
     }
 
@@ -274,6 +265,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const baseName = nameParts.join('.');
         const betterFilename = `${baseName}_${currentLevelName}.${ext}`;
 
+        // Reativa os controles para quando o usuário clicar em "Novo arquivo"
+        // ou "Tentar outro nível" e voltar para a tela inicial
+        resetCompressBtnUI();
+
         finalFilename.textContent = betterFilename;
         downloadBtn.href = downloadUrl;
         downloadBtn.setAttribute('download', betterFilename);
@@ -282,7 +277,22 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleError(msg) {
         showSection(uploadSection);
         errorMsg.textContent = `⚠ ${msg}`;
-        // Não apaga o arquivo se deu erro, deixa o usuário tentar de novo mudando o nível
+        // Reativa os controles após um erro
+        resetCompressBtnUI();
+    }
+
+    // Helper para restaurar o visual do botão Comprimir e desbloquear a UI
+    function resetCompressBtnUI() {
+        compressBtn.disabled = false;
+        toggleUI(false);
+        compressBtn.innerHTML = `
+            <svg style="width:16px;height:16px;vertical-align:-3px;margin-right:6px" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                stroke-linejoin="round">
+                <polyline points="8 17 12 21 16 17" />
+                <line x1="12" y1="3" x2="12" y2="21" />
+            </svg>
+            Comprimir Agora`;
     }
 
     function showSection(section) {
