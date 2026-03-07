@@ -29,36 +29,53 @@ pub async fn run_and_stream(
         .take()
         .ok_or_else(|| "Falha ao capturar stderr do FFmpeg".to_string())?;
 
-    let mut reader = BufReader::new(stderr).lines();
+    let mut reader = tokio::io::BufReader::new(stderr);
 
     let re_duration = Regex::new(r"Duration: (\d{2}:\d{2}:\d{2}\.\d{2})").unwrap();
     let re_time = Regex::new(r"time=(\d{2}:\d{2}:\d{2}\.\d{2})").unwrap();
 
     let mut total_duration_sec: Option<f32> = None;
     let mut last_error_line = String::new();
+    let mut buffer = Vec::new();
 
-    while let Ok(Some(line)) = reader.next_line().await {
-        last_error_line = line.clone();
+    loop {
+        buffer.clear();
+        // FFmpeg writes progress using carriage return '\r' and newlines '\n'
+        let bytes_read = match reader.read_until(b'\r', &mut buffer).await {
+            Ok(0) => break, // EOF
+            Ok(n) => n,
+            Err(_) => break,
+        };
 
-        if total_duration_sec.is_none() {
-            if let Some(caps) = re_duration.captures(&line) {
-                if let Some(dur_str) = caps.get(1) {
-                    total_duration_sec = parse_duration(dur_str.as_str());
+        let line = String::from_utf8_lossy(&buffer).to_string();
+        
+        // As FFmpeg occasionally mixes \n and \r, let's split by \n just in case,
+        // though our primary delimiter is \r now.
+        for chunk in line.split('\n') {
+            let chunk = chunk.trim();
+            if chunk.is_empty() { continue; }
+            last_error_line = chunk.to_string();
+
+            if total_duration_sec.is_none() {
+                if let Some(caps) = re_duration.captures(chunk) {
+                    if let Some(dur_str) = caps.get(1) {
+                        total_duration_sec = parse_duration(dur_str.as_str());
+                    }
                 }
             }
-        }
 
-        if let Some(total) = total_duration_sec {
-            if let Some(caps) = re_time.captures(&line) {
-                if let Some(time_str) = caps.get(1) {
-                    if let Some(current_time) = parse_duration(time_str.as_str()) {
-                        let mut progress = (current_time / total) * 100.0;
-                        if progress > 100.0 {
-                            progress = 100.0;
-                        }
+            if let Some(total) = total_duration_sec {
+                if let Some(caps) = re_time.captures(chunk) {
+                    if let Some(time_str) = caps.get(1) {
+                        if let Some(current_time) = parse_duration(time_str.as_str()) {
+                            let mut progress = (current_time / total) * 100.0;
+                            if progress > 100.0 {
+                                progress = 100.0;
+                            }
 
-                        if let Some(tx) = progress_tx {
-                            let _ = tx.send(progress);
+                            if let Some(tx) = progress_tx {
+                                let _ = tx.send(progress);
+                            }
                         }
                     }
                 }
