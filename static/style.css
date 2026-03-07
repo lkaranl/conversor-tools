@@ -479,6 +479,42 @@ body {
     margin: 0 auto 20px;
 }
 
+progress.media-progress {
+    appearance: none;
+    width: 60%;
+    height: 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    margin: 15px auto 10px;
+    display: block;
+    overflow: hidden;
+}
+
+progress.media-progress::-webkit-progress-bar {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+progress.media-progress::-webkit-progress-value {
+    background: var(--accent-blue);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+progress.media-progress::-moz-progress-bar {
+    background: var(--accent-blue);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.progress-percent {
+    font-size: 0.95rem;
+    color: var(--accent-blue);
+    font-weight: 600;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
 @keyframes spin {
     to {
         transform: rotate(360deg);

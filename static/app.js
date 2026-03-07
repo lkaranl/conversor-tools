@@ -25,6 +25,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const finalFilename = document.getElementById('final-filename');
     const statusTitle = document.getElementById('status-title');
     const statusDesc = document.getElementById('status-desc');
+    const spinner = document.querySelector('.spinner');
+    const mediaProgress = document.getElementById('media-progress');
+    const progressPercent = document.getElementById('progress-percent');
+
     const pillBtns = document.querySelectorAll('.pill-btn');
     const mediaCards = document.querySelectorAll('.media-card:not(.coming-soon)');
 
@@ -154,6 +158,13 @@ document.addEventListener('DOMContentLoaded', () => {
         statusTitle.textContent = 'Enviando arquivo...';
         statusDesc.textContent = file.name;
 
+        // Reset visual do loading
+        spinner.classList.remove('hidden');
+        mediaProgress.classList.add('hidden');
+        progressPercent.classList.add('hidden');
+        mediaProgress.value = 0;
+        progressPercent.textContent = '0%';
+
         const formData = new FormData();
         formData.append('file', file);
         formData.append('compression_level', compressionLevel.toString());
@@ -226,6 +237,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const job = await res.json();
+
+            // Lógica de Renderização do Progresso
+            if (job.progress !== null && job.progress !== undefined) {
+                spinner.classList.add('hidden');
+                mediaProgress.classList.remove('hidden');
+                progressPercent.classList.remove('hidden');
+
+                mediaProgress.value = job.progress;
+                progressPercent.textContent = `${Math.round(job.progress)}%`;
+            }
 
             if (job.status === 'completed') {
                 await showSuccess(job.id, job.filename);

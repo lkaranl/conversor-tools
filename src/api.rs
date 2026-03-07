@@ -112,6 +112,7 @@ async fn upload_mp4(State(state): State<AppState>, mut multipart: Multipart) -> 
         crate::state::JobStatus {
             id: id.clone(),
             status: "processing".to_string(),
+            progress: Some(0.0),
             error: None,
             filename: saved_filename,
             compressed_filename: None,
@@ -147,11 +148,31 @@ async fn upload_mp4(State(state): State<AppState>, mut multipart: Multipart) -> 
         let better_filename = format!("{}_{}.{}", file_stem, level_name, ext);
         let out_path = format!("uploads/{}_{}", id_clone, better_filename);
 
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<f32>();
+        
+        // Spawn de task para escutar o progresso em tempo real e atualizar o state
+        let state_progress = state_clone.clone();
+        let id_progress = id_clone.clone();
+        tokio::spawn(async move {
+            while let Some(progress) = rx.recv().await {
+                if let Some(job) = state_progress.write().await.jobs.get_mut(&id_progress) {
+                    if let Some(p) = job.progress {
+                        if progress > p || (progress == 0.0) {
+                             job.progress = Some(progress);
+                        }
+                    } else {
+                        job.progress = Some(progress);
+                    }
+                }
+            }
+        });
+
         let result = compress_media(
             MediaType::Mp4,
             &temp_path.to_string_lossy(),
             &out_path,
             compression_level,
+            Some(tx),
         ).await;
 
 
@@ -242,6 +263,7 @@ async fn upload_png(State(state): State<AppState>, mut multipart: Multipart) -> 
         crate::state::JobStatus {
             id: id.clone(),
             status: "processing".to_string(),
+            progress: None,
             error: None,
             filename: saved_filename,
             compressed_filename: None,
@@ -281,6 +303,7 @@ async fn upload_png(State(state): State<AppState>, mut multipart: Multipart) -> 
             &temp_path.to_string_lossy(),
             &out_path,
             compression_level,
+            None,
         ).await;
 
         let mut s = state_clone.write().await;
@@ -370,6 +393,7 @@ async fn upload_jpeg(State(state): State<AppState>, mut multipart: Multipart) ->
         crate::state::JobStatus {
             id: id.clone(),
             status: "processing".to_string(),
+            progress: None,
             error: None,
             filename: saved_filename,
             compressed_filename: None,
@@ -407,6 +431,7 @@ async fn upload_jpeg(State(state): State<AppState>, mut multipart: Multipart) ->
             &temp_path.to_string_lossy(),
             &out_path,
             compression_level,
+            None,
         ).await;
 
         let mut s = state_clone.write().await;
@@ -496,6 +521,7 @@ async fn upload_audio(State(state): State<AppState>, mut multipart: Multipart) -
         crate::state::JobStatus {
             id: id.clone(),
             status: "processing".to_string(),
+            progress: Some(0.0),
             error: None,
             filename: saved_filename,
             compressed_filename: None,
@@ -529,11 +555,30 @@ async fn upload_audio(State(state): State<AppState>, mut multipart: Multipart) -
         let better_filename = format!("{}_{}.{}", file_stem, level_name, ext);
         let out_path = format!("uploads/{}_{}", id_clone, better_filename);
 
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<f32>();
+        
+        let state_progress = state_clone.clone();
+        let id_progress = id_clone.clone();
+        tokio::spawn(async move {
+            while let Some(progress) = rx.recv().await {
+                if let Some(job) = state_progress.write().await.jobs.get_mut(&id_progress) {
+                    if let Some(p) = job.progress {
+                        if progress > p || (progress == 0.0) {
+                             job.progress = Some(progress);
+                        }
+                    } else {
+                        job.progress = Some(progress);
+                    }
+                }
+            }
+        });
+
         let result = compress_media(
             MediaType::Audio,
             &temp_path.to_string_lossy(),
             &out_path,
             compression_level,
+            Some(tx),
         ).await;
 
         let mut s = state_clone.write().await;
@@ -623,6 +668,7 @@ async fn upload_pdf(State(state): State<AppState>, mut multipart: Multipart) -> 
         crate::state::JobStatus {
             id: id.clone(),
             status: "processing".to_string(),
+            progress: None,
             error: None,
             filename: saved_filename,
             compressed_filename: None,
@@ -661,6 +707,7 @@ async fn upload_pdf(State(state): State<AppState>, mut multipart: Multipart) -> 
             &temp_path.to_string_lossy(),
             &out_path,
             compression_level,
+            None,
         ).await;
 
         let mut s = state_clone.write().await;

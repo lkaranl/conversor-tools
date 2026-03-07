@@ -1,7 +1,12 @@
-use std::process::Command;
+use tokio::process::Command;
 use std::path::Path;
 
-pub async fn compress(input: &str, output: &str, level: u8) -> Result<(), String> {
+pub async fn compress(
+    input: &str,
+    output: &str,
+    level: u8,
+    progress_tx: Option<tokio::sync::mpsc::UnboundedSender<f32>>,
+) -> Result<(), String> {
     // Determinar bitrate com base no nível escolhido
     // Leve (1): 192k
     // Média (2): 128k
@@ -40,26 +45,13 @@ pub async fn compress(input: &str, output: &str, level: u8) -> Result<(), String
 
     println!("[FFmpeg Audio] Rodando: ffmpeg {}", args.join(" "));
 
-    let child = Command::new("ffmpeg")
-        .args(&args)
-        .stdout(std::process::Stdio::null()) // Oculta output normal
-        .stderr(std::process::Stdio::piped())
-        .spawn();
+    let mut cmd = Command::new("ffmpeg");
+    cmd.args(&args);
 
-    let output_result = match child {
-        Ok(process) => process.wait_with_output(),
-        Err(e) => return Err(format!("Falha ao iniciar FFmpeg: {}", e)),
-    };
+    let result = crate::utils::ffmpeg_progress::run_and_stream(&mut cmd, &progress_tx).await;
 
-    match output_result {
-        Ok(out) => {
-            if out.status.success() {
-                Ok(())
-            } else {
-                let err_str = String::from_utf8_lossy(&out.stderr);
-                Err(format!("Erro no FFmpeg: {}", err_str))
-            }
-        }
-        Err(e) => Err(format!("Erro ao aguardar processo FFmpeg: {}", e)),
+    match result {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("Erro no FFmpeg: {}", e)),
     }
 }

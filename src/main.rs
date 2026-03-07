@@ -1,6 +1,7 @@
 mod api;
 mod compressor;
 mod state;
+mod utils;
 
 use axum::Router;
 use std::net::SocketAddr;

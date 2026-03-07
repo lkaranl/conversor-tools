@@ -6,6 +6,7 @@ use tokio::sync::RwLock;
 pub struct JobStatus {
     pub id: String,
     pub status: String,    // "processing", "completed", "error"
+    pub progress: Option<f32>,
     pub error: Option<String>,
     pub filename: String,
     pub compressed_filename: Option<String>,
