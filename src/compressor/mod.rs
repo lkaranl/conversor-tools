@@ -2,13 +2,14 @@ pub mod mp4;
 pub mod png;
 pub mod jpeg;
 pub mod audio;
+pub mod pdf;
 
 pub enum MediaType {
     Mp4,
     Png,
     Jpeg,
     Audio,
-    // Futuramente: Mp3...
+    Pdf,
 }
 
 pub async fn compress_media(media_type: MediaType, input: &str, output: &str, level: u8) -> Result<(), String> {
@@ -17,5 +18,6 @@ pub async fn compress_media(media_type: MediaType, input: &str, output: &str, le
         MediaType::Png => png::compress(input, output, level).await,
         MediaType::Jpeg => jpeg::compress(input, output, level).await,
         MediaType::Audio => audio::compress(input, output, level).await,
+        MediaType::Pdf => pdf::compress(input, output, level).await,
     }
 }

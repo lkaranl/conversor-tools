@@ -8,6 +8,7 @@ Sua interface entrega a melhor experiência de usuário (UX) através de uma abo
 
 - **Compressão MP4 Otimizada:** Escolha o nível de compressão desejado. Suporta **aceleração GPU via AMD VAAPI** nativamente em servidores Linux (processamento brutalmente mais rápido para vídeos H.264).
 - **Compressão de Áudio Nativa (MP3/M4A):** Reduza vertiginosamente o tamanho de músicas, podcasts e áudios de gravação usando FFmpeg com decodificação AAC e libmp3lame integrados, com bitrates limitados variando de 192k a níveis robóticos drásticos (32k).
+- **Compressão Ghostscript para PDF:** A biblioteca mais madura do Linux integrando vetores com compactação agressiva, preservando DPI (impressão 300dpi até 72dpi pra telas), transformando até PDFs imensos em cópias rápidas. Nível extremo aplica um forçado `ColorConversionStrategy` em tons de cinza.
 - **Compressão de Imagens Lossy (PNG/JPEG):** Não confia em ferramentas fracas. O conversor usa nativamente as bibliotecas maduras e dedicadas **`pngquant`** e **`jpegoptim`** para destruir metadados pesados e achatar matrizes de qualidade em até 80%, mantendo uma grande fidelidade visual (com base nos níveis).
 - **Nível "Extrema" (Panic Mode):** Um quarto nível de compressão destrutor de pixels. Feito para forçar o menor tamanho de bytes possível, esmagando a qualidade globalmente.
 - **API Resiliente:** Upload multithread, sistema de polling de jobs baseado em ID (`UUID`) não obstrutivo no frontend com Auto-Backoff para economizar requisições do servidor.
@@ -15,12 +16,12 @@ Sua interface entrega a melhor experiência de usuário (UX) através de uma abo
 
 ## Níveis de Compressão
 
-| Nível | MP4 (GPU VAAPI) | MP4 (CPU x264) | PNG (`pngquant`) | JPEG (`jpegoptim`) | Áudio (MP3 / M4A) |
-| --- | --- | --- | --- | --- | --- |
-| 🟢 **Leve** | Qualidade: Alta (QP 22) | CRF 22 (Preset Fast) | Visual: 65%~80% | Qualidade Alvo: 85% | Bitrate: 192k (Alta Defin.) |
-| 🟡 **Média** | Qualidade: Normal (QP 28) | CRF 28 (Preset Fast) | Visual: 40%~60% | Qualidade Alvo: 65% | Bitrate: 128k (Música Padrão) |
-| 🔴 **Alta** | Qualidade: Baixa (QP 35) | CRF 35 (Preset Fast) | Visual: 15%~35% | Qualidade Alvo: 40% | Bitrate: 64k (Podcast/Voz) |
-| ⚫ **Extrema** | Dane-se a qualidade (Scale 0.5x) | CRF 51 (Preset VerySlow) | Qualidade 0~10 + Posterize | Qualidade 15% + Strip | Bitrate: 32k (Telefone/Rádio) |
+| Nível | MP4 (GPU VAAPI) | MP4 (CPU x264) | PNG (`pngquant`) | JPEG (`jpegoptim`) | Áudio (MP3 / M4A) | PDF (Ghostscript) |
+| --- | --- | --- | --- | --- | --- | --- |
+| 🟢 **Leve** | Qualidade: Alta (QP 22) | CRF 22 (Preset Fast) | Visual: 65%~80% | Qualidade Alvo: 85% | Bitrate: 192k (Alta Defin.) | 300 DPI (Uso P/ Impressão) |
+| 🟡 **Média** | Qualidade: Normal (QP 28) | CRF 28 (Preset Fast) | Visual: 40%~60% | Qualidade Alvo: 65% | Bitrate: 128k (Música Padrão) | 150 DPI (Ideal Ebook/Tel) |
+| 🔴 **Alta** | Qualidade: Baixa (QP 35) | CRF 35 (Preset Fast) | Visual: 15%~35% | Qualidade Alvo: 40% | Bitrate: 64k (Podcast/Voz) | 72 DPI (Focado na Web) |
+| ⚫ **Extrema** | Dane-se a qualidade (Scale 0.5x) | CRF 51 (Preset VerySlow) | Qualidade 0~10 + Posterize | Qualidade 15% + Strip | Bitrate: 32k (Telefone/Rádio) | 72 DPI + Tons de Cinza 🏴󠁥󠁮󠁧󠁿 |
 
 ---
 
@@ -32,7 +33,7 @@ Para que o conversor consiga realizar sua mágica, o backend depende fortemente 
 Rode o comando abaixo no terminal do seu servidor:
 ```bash
 sudo apt update
-sudo apt install -y ffmpeg pngquant jpegoptim
+sudo apt install -y ffmpeg pngquant jpegoptim ghostscript
 ```
 
 **Para Aceleração GPU AMD (VAAPI):**

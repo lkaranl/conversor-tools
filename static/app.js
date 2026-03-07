@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
         png: 'Aceita arquivos .png',
         jpeg: 'Aceita arquivos .jpeg, .jpg',
         audio: 'Aceita arquivos .mp3, .m4a',
+        pdf: 'Aceita arquivos .pdf',
     };
 
     // --- Media Type Selection ---
@@ -103,6 +104,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (selectedType === 'audio' && ext !== 'mp3' && ext !== 'm4a') {
             errorMsg.textContent = 'Por favor, selecione um arquivo de Áudio (.mp3 ou .m4a) válido.';
+            return;
+        }
+        if (selectedType === 'pdf' && ext !== 'pdf') {
+            errorMsg.textContent = 'Por favor, selecione um arquivo PDF (.pdf) válido.';
             return;
         }
 
