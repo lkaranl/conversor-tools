@@ -29,11 +29,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const mediaCards = document.querySelectorAll('.media-card:not(.coming-soon)');
 
     const levelNames = { 1: 'Leve', 2: 'Média', 3: 'Alta', 4: 'Extrema' };
+    // Textos de dica da dropzone por tipo
     const hints = {
         mp4: 'Aceita arquivos .mp4',
-        mp3: 'Aceita arquivos .mp3',
         png: 'Aceita arquivos .png',
-        jpeg: 'Aceita arquivos .jpg, .jpeg',
+        jpeg: 'Aceita arquivos .jpeg, .jpg',
+        audio: 'Aceita arquivos .mp3, .m4a',
     };
 
     // --- Media Type Selection ---
@@ -98,6 +99,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (selectedType === 'jpeg' && ext !== 'jpeg' && ext !== 'jpg') {
             errorMsg.textContent = 'Por favor, selecione um arquivo JPEG (.jpg ou .jpeg) válido.';
+            return;
+        }
+        if (selectedType === 'audio' && ext !== 'mp3' && ext !== 'm4a') {
+            errorMsg.textContent = 'Por favor, selecione um arquivo de Áudio (.mp3 ou .m4a) válido.';
             return;
         }
 

@@ -7,6 +7,7 @@ Sua interface entrega a melhor experiência de usuário (UX) através de uma abo
 ## Funcionalidades Principais 🌟
 
 - **Compressão MP4 Otimizada:** Escolha o nível de compressão desejado. Suporta **aceleração GPU via AMD VAAPI** nativamente em servidores Linux (processamento brutalmente mais rápido para vídeos H.264).
+- **Compressão de Áudio Nativa (MP3/M4A):** Reduza vertiginosamente o tamanho de músicas, podcasts e áudios de gravação usando FFmpeg com decodificação AAC e libmp3lame integrados, com bitrates limitados variando de 192k a níveis robóticos drásticos (32k).
 - **Compressão de Imagens Lossy (PNG/JPEG):** Não confia em ferramentas fracas. O conversor usa nativamente as bibliotecas maduras e dedicadas **`pngquant`** e **`jpegoptim`** para destruir metadados pesados e achatar matrizes de qualidade em até 80%, mantendo uma grande fidelidade visual (com base nos níveis).
 - **Nível "Extrema" (Panic Mode):** Um quarto nível de compressão destrutor de pixels. Feito para forçar o menor tamanho de bytes possível, esmagando a qualidade globalmente.
 - **API Resiliente:** Upload multithread, sistema de polling de jobs baseado em ID (`UUID`) não obstrutivo no frontend com Auto-Backoff para economizar requisições do servidor.
@@ -14,12 +15,12 @@ Sua interface entrega a melhor experiência de usuário (UX) através de uma abo
 
 ## Níveis de Compressão
 
-| Nível | MP4 (GPU VAAPI) | MP4 (CPU x264) | PNG (`pngquant`) | JPEG (`jpegoptim`) |
-| --- | --- | --- | --- | --- |
-| 🟢 **Leve** | Qualidade: Alta (QP 22) | CRF 22 (Preset Fast) | Visual: 65%~80% | Qualidade Alvo: 85% |
-| 🟡 **Média** | Qualidade: Normal (QP 28) | CRF 28 (Preset Fast) | Visual: 40%~60% | Qualidade Alvo: 65% |
-| 🔴 **Alta** | Qualidade: Baixa (QP 35) | CRF 35 (Preset Fast) | Visual: 15%~35% | Qualidade Alvo: 40% |
-| ⚫ **Extrema** | Dane-se a qualidade (Scale 0.5x, Audio 64k) | CRF 51 (Preset VerySlow, Scale 0.5x) | Qualidade 0~10 + Posterize brutal | Qualidade 15% + Strip Exaustivo |
+| Nível | MP4 (GPU VAAPI) | MP4 (CPU x264) | PNG (`pngquant`) | JPEG (`jpegoptim`) | Áudio (MP3 / M4A) |
+| --- | --- | --- | --- | --- | --- |
+| 🟢 **Leve** | Qualidade: Alta (QP 22) | CRF 22 (Preset Fast) | Visual: 65%~80% | Qualidade Alvo: 85% | Bitrate: 192k (Alta Defin.) |
+| 🟡 **Média** | Qualidade: Normal (QP 28) | CRF 28 (Preset Fast) | Visual: 40%~60% | Qualidade Alvo: 65% | Bitrate: 128k (Música Padrão) |
+| 🔴 **Alta** | Qualidade: Baixa (QP 35) | CRF 35 (Preset Fast) | Visual: 15%~35% | Qualidade Alvo: 40% | Bitrate: 64k (Podcast/Voz) |
+| ⚫ **Extrema** | Dane-se a qualidade (Scale 0.5x) | CRF 51 (Preset VerySlow) | Qualidade 0~10 + Posterize | Qualidade 15% + Strip | Bitrate: 32k (Telefone/Rádio) |
 
 ---
 
