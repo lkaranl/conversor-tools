@@ -26,8 +26,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusTitle = document.getElementById('status-title');
     const statusDesc = document.getElementById('status-desc');
     const spinner = document.querySelector('.spinner');
-    const mediaProgress = document.getElementById('media-progress');
-    const progressPercent = document.getElementById('progress-percent');
+    const mediaProgressContainer = document.getElementById('media-progress');
+    const mediaProgressBar = document.getElementById('media-progress-bar');
+    const progressPercentText = document.getElementById('progress-percent');
 
     const pillBtns = document.querySelectorAll('.pill-btn');
     const mediaCards = document.querySelectorAll('.media-card:not(.coming-soon)');
@@ -160,10 +161,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Reset visual do loading
         spinner.classList.remove('hidden');
-        mediaProgress.classList.add('hidden');
-        progressPercent.classList.add('hidden');
-        mediaProgress.value = 0;
-        progressPercent.textContent = '0%';
+        mediaProgressContainer.classList.add('hidden');
+        mediaProgressBar.style.width = '0%';
+        progressPercentText.textContent = '0%';
 
         const formData = new FormData();
         formData.append('file', file);
@@ -238,14 +238,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const job = await res.json();
 
-            // Lógica de Renderização do Progresso
+            // Lógica de Renderização do Progresso Elegante
             if (job.progress !== null && job.progress !== undefined) {
                 spinner.classList.add('hidden');
-                mediaProgress.classList.remove('hidden');
-                progressPercent.classList.remove('hidden');
+                mediaProgressContainer.classList.remove('hidden');
 
-                mediaProgress.value = job.progress;
-                progressPercent.textContent = `${Math.round(job.progress)}%`;
+                mediaProgressBar.style.width = `${job.progress}%`;
+                progressPercentText.textContent = `${Math.round(job.progress)}%`;
             }
 
             if (job.status === 'completed') {

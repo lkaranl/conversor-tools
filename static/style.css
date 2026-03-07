@@ -479,40 +479,73 @@ body {
     margin: 0 auto 20px;
 }
 
-progress.media-progress {
-    appearance: none;
-    width: 60%;
-    height: 8px;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.1);
-    border: none;
-    margin: 15px auto 10px;
-    display: block;
+.progress-container {
+    width: 80%;
+    margin: 20px auto;
+    text-align: center;
+}
+
+.progress-bar-wrapper {
+    height: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
     overflow: hidden;
+    position: relative;
+    margin-bottom: 12px;
 }
 
-progress.media-progress::-webkit-progress-bar {
-    background: rgba(255, 255, 255, 0.1);
+.progress-bar-fill {
+    height: 100%;
+    width: 0%;
+    /* Premium Gradient */
+    background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);
+    background-size: 200% 100%;
+    border-radius: 20px;
+    box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: gradientShift 2s linear infinite;
+    position: relative;
 }
 
-progress.media-progress::-webkit-progress-value {
-    background: var(--accent-blue);
-    border-radius: 4px;
-    transition: width 0.3s ease;
-}
-
-progress.media-progress::-moz-progress-bar {
-    background: var(--accent-blue);
-    border-radius: 4px;
-    transition: width 0.3s ease;
+/* Efeito de Reflexo de Luz na Barra */
+.progress-bar-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    animation: shimmer 1.5s infinite;
 }
 
 .progress-percent {
-    font-size: 0.95rem;
-    color: var(--accent-blue);
-    font-weight: 600;
-    margin-bottom: 20px;
-    text-align: center;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+    letter-spacing: 0.5px;
+}
+
+@keyframes gradientShift {
+    0% {
+        background-position: 100% 0;
+    }
+
+    100% {
+        background-position: -100% 0;
+    }
+}
+
+@keyframes shimmer {
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(100%);
+    }
 }
 
 @keyframes spin {
