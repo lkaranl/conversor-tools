@@ -196,8 +196,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Polling com timeout e backoff progressivo ---
-    // Tenta por até ~3 minutos com backoff de 1.5s → 3s → 5s
-    const MAX_POLLS = 80;
+    // Tenta por mais vezes com backoff agressivo e curto para barra super fluida: 500ms -> 1s -> 2s
+    const MAX_POLLS = 1000;
 
     async function pollStatus(jobId, attempts) {
         if (attempts >= MAX_POLLS) {
@@ -209,8 +209,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Backoff: começa rápido e vai desacelerando
-        const delay = attempts < 10 ? 1500 : attempts < 30 ? 3000 : 5000;
+        // Backoff: rápido para ler os frames a cada meio segundo.
+        const delay = attempts < 100 ? 500 : attempts < 300 ? 1000 : 2000;
 
         try {
             let res;
