@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const batchProgressBar = document.getElementById('batch-progress-bar');
     const batchProgressText = document.getElementById('batch-progress-text');
     const batchActions = document.getElementById('batch-actions');
+    const zipDownloadBtn = document.getElementById('zip-download-btn');
     const resetBtn = document.getElementById('reset-btn');
 
     const pillBtns = document.querySelectorAll('.pill-btn');
@@ -282,17 +283,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateBatchProgress() {
-        const jobs = Object.values(activeJobs);
-        const total = jobs.length;
-        const completed = jobs.filter(j => j.status === 'completed' || j.status === 'error').length;
+        const jobEntries = Object.entries(activeJobs);
+        const total = jobEntries.length;
+        const completedJobs = jobEntries.filter(([_, j]) => j.status === 'completed' || j.status === 'error');
+        const completedCount = completedJobs.length;
         
-        const percent = (completed / total) * 100;
+        const percent = (completedCount / total) * 100;
         batchProgressBar.style.width = `${percent}%`;
-        batchProgressText.textContent = `${completed} de ${total} concluídos`;
+        batchProgressText.textContent = `${completedCount} de ${total} concluídos`;
         
-        if (completed === total) {
+        if (completedCount === total) {
             batchStatusTitle.textContent = 'Processamento finalizado!';
             batchActions.classList.remove('hidden');
+            
+            // Gerar link do ZIP apenas com os IDs que deram certo
+            const successIds = jobEntries
+                .filter(([_, j]) => j.status === 'completed')
+                .map(([id, _]) => id);
+                
+            if (successIds.length > 0) {
+                zipDownloadBtn.href = `/api/download/zip?ids=${successIds.join(',')}`;
+                zipDownloadBtn.classList.remove('hidden');
+            } else {
+                zipDownloadBtn.classList.add('hidden');
+            }
         }
     }
 

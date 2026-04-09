@@ -1,6 +1,6 @@
 use regex::Regex;
 use std::process::Stdio;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::AsyncBufReadExt;
 use tokio::process::Command;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -41,7 +41,7 @@ pub async fn run_and_stream(
     loop {
         buffer.clear();
         // FFmpeg writes progress using carriage return '\r' and newlines '\n'
-        let bytes_read = match reader.read_until(b'\r', &mut buffer).await {
+        let _bytes_read = match reader.read_until(b'\r', &mut buffer).await {
             Ok(0) => break, // EOF
             Ok(n) => n,
             Err(_) => break,

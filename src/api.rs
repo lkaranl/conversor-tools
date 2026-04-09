@@ -2,12 +2,13 @@ use crate::state::AppState;
 use crate::compressor::{compress_media, MediaType};
 use axum::{
     body::Body,
-    extract::{DefaultBodyLimit, Multipart, Path, State},
+    extract::{DefaultBodyLimit, Multipart, Path, Query, State},
     http::{header, StatusCode},
     response::{IntoResponse, Json, Response},
     routing::{get, post},
     Router,
 };
+use serde::Deserialize;
 use serde_json::json;
 use std::path::{PathBuf, Path as StdPath};
 use tokio::fs::{File, create_dir_all};
@@ -41,6 +42,7 @@ pub fn router(state: AppState) -> Router {
             "/compress/pdf",
             post(upload_pdf).layer(DefaultBodyLimit::disable()),
         )
+        .route("/download/zip", get(download_batch_zip))
         .route("/status/{id}", get(job_status))
         .route("/download/{id}", get(download_file))
         .with_state(state)
@@ -325,4 +327,70 @@ async fn download_file(State(state): State<AppState>, Path(id): Path<String>) ->
         .status(StatusCode::NOT_FOUND)
         .body(Body::from("Arquivo não encontrado"))
         .unwrap()
+}
+
+#[derive(Deserialize)]
+pub struct ZipParams {
+    pub ids: String,
+}
+
+async fn download_batch_zip(
+    State(state): State<AppState>,
+    Query(params): Query<ZipParams>,
+) -> impl IntoResponse {
+    let ids: Vec<&str> = params.ids.split(',').collect();
+    
+    let mut buffer = Vec::new();
+    let mut zip_writer = zip::ZipWriter::new(std::io::Cursor::new(&mut buffer));
+    
+    let mut files_added = 0;
+    
+    {
+        let state_read = state.read().await;
+        for id in ids {
+            if let Some(job) = state_read.jobs.get(id) {
+                if job.status == "completed" {
+                    if let Some(ref compressed) = job.compressed_filename {
+                        // compressed_filename already contains "uploads/" prefix
+                        let path = compressed; 
+                        if let Ok(mut file) = std::fs::File::open(path) {
+                            let options = zip::write::SimpleFileOptions::default()
+                                .compression_method(zip::CompressionMethod::Deflated);
+                            
+                            // Strip "uploads/" prefix for the ZIP entry name
+                            let mut entry_name = compressed.as_str();
+                            if entry_name.starts_with("uploads/") {
+                                entry_name = &entry_name[8..];
+                            }
+                            // Also strip UUID prefix (36 chars + 1 underscore = 37)
+                            if entry_name.len() > 37 {
+                                entry_name = &entry_name[37..];
+                            }
+
+                            if zip_writer.start_file(entry_name, options).is_ok() {
+                                if std::io::copy(&mut file, &mut zip_writer).is_ok() {
+                                    files_added += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    if files_added == 0 {
+        return (StatusCode::NOT_FOUND, "Nenhum arquivo finalizado encontrado para o ZIP").into_response();
+    }
+    
+    if let Ok(_) = zip_writer.finish() {
+        Response::builder()
+            .header(header::CONTENT_TYPE, "application/zip")
+            .header(header::CONTENT_DISPOSITION, "attachment; filename=\"arquivos_comprimidos.zip\"")
+            .body(Body::from(buffer))
+            .unwrap()
+            .into_response()
+    } else {
+        (StatusCode::INTERNAL_SERVER_ERROR, "Erro ao gerar arquivo ZIP").into_response()
+    }
 }
