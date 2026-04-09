@@ -1,0 +1,30 @@
+[Unit]
+Description=Serviço Conversor Tools
+# Inicia apenas após a rede estar disponível
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# --- Caminhos e Execução ---
+# O diretório onde estão seus arquivos JSON e .env
+WorkingDirectory=/home/karan/Documentos/GitHub/conversor-tools
+# Caminho absoluto para o binário compilado em modo --release
+ExecStart=/home/karan/Documentos/GitHub/conversor-tools/target/release/conversor-tools
+
+# --- Permisões ---
+#User=karan
+#Group=karan
+
+# --- Confiabilidade ---
+# Garante que ele reinicie sempre, independente de como ele parou
+Restart=on-failure
+# Aguarda 5 segundos antes de reiniciar (evita flood de logs e libera portas de rede)
+RestartSec=5s
+
+# --- Recursos e Logs ---
+# Importante para lidar com múltiplas conexões de rede simultâneas
+LimitNOFILE=65535
+SyslogIdentifier=conversor-tools
+
+[Install]
+WantedBy=multi-user.target
