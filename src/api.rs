@@ -18,6 +18,10 @@ use uuid::Uuid;
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route(
+            "/compress",
+            post(upload_batch).layer(DefaultBodyLimit::disable()),
+        )
+        .route(
             "/compress/mp4",
             post(upload_mp4).layer(DefaultBodyLimit::disable()),
         )
@@ -42,91 +46,37 @@ pub fn router(state: AppState) -> Router {
         .with_state(state)
 }
 
-async fn upload_mp4(State(state): State<AppState>, mut multipart: Multipart) -> impl IntoResponse {
-    let id = Uuid::new_v4().to_string();
-    let _ = create_dir_all("uploads").await;
+fn detect_media_type(filename: &str) -> Option<MediaType> {
+    let ext = StdPath::new(filename)
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_lowercase();
 
-    let mut compression_level: u8 = 2; // padrão: Média
-    let mut found_file = false;
-    let mut saved_path = PathBuf::new();
-    let mut saved_filename = String::new();
-    let mut saved_original = String::new();
-
-    while let Some(mut field) = match multipart.next_field().await {
-        Ok(Some(f)) => Some(f),
+    match ext.as_str() {
+        "mp4" => Some(MediaType::Mp4),
+        "png" => Some(MediaType::Png),
+        "jpg" | "jpeg" => Some(MediaType::Jpeg),
+        "mp3" | "m4a" => Some(MediaType::Audio),
+        "pdf" => Some(MediaType::Pdf),
         _ => None,
-    } {
-        let name = field.name().unwrap_or("").to_string();
-
-        if name == "compression_level" {
-            if let Ok(Some(chunk)) = field.chunk().await {
-                if let Ok(val_str) = std::str::from_utf8(&chunk) {
-                    compression_level = val_str.trim().parse().unwrap_or(2).clamp(1, 4);
-                }
-            }
-            continue;
-        }
-
-        if name == "file" {
-            found_file = true;
-            let file_name = field.file_name().unwrap_or("video.mp4").to_string();
-            saved_original = file_name.clone();
-            saved_filename = file_name.clone();
-
-            let path = format!("uploads/{}_{}", id, file_name);
-            saved_path = PathBuf::from(&path);
-
-            let mut disk_file = match File::create(&saved_path).await {
-                Ok(f) => f,
-                Err(e) => return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": format!("Erro ao criar arquivo: {}", e)})),
-                ).into_response(),
-            };
-
-            while let Some(chunk) = match field.chunk().await {
-                Ok(c) => c,
-                Err(e) => return (
-                    StatusCode::BAD_REQUEST,
-                    Json(json!({"error": format!("Erro ao ler upload: {}", e)})),
-                ).into_response(),
-            } {
-                if let Err(e) = disk_file.write_all(&chunk).await {
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(json!({"error": format!("Erro ao escrever no disco: {}", e)})),
-                    ).into_response();
-                }
-            }
-        }
     }
+}
 
-    if !found_file {
-        return (StatusCode::BAD_REQUEST, Json(json!({"error": "Nenhum arquivo encontrado no envio."}))).into_response();
-    }
-
-    // Registrar Job
-    let mut s = state.write().await;
-    s.jobs.insert(
-        id.clone(),
-        crate::state::JobStatus {
-            id: id.clone(),
-            status: "processing".to_string(),
-            progress: Some(0.0),
-            error: None,
-            filename: saved_filename,
-            compressed_filename: None,
-        },
-    );
-    drop(s);
-
-    // Iniciar compressão em background
+async fn start_compression_job(
+    state: AppState,
+    id: String,
+    media_type: MediaType,
+    saved_path: PathBuf,
+    original_filename: String,
+    compression_level: u8,
+) {
     let state_clone = state.clone();
     let id_clone = id.clone();
     let temp_path = saved_path;
-    let original_filename = saved_original;
+    let original_filename_clone = original_filename.clone();
+
     tokio::spawn(async move {
-        // Obter nome de nivel
         let level_name = match compression_level {
             1 => "Leve",
             3 => "Alta",
@@ -134,23 +84,27 @@ async fn upload_mp4(State(state): State<AppState>, mut multipart: Multipart) -> 
             _ => "Média",
         };
 
-        // Formatar no padrão antigo ou pegar extensao original
-        let ext = StdPath::new(&original_filename)
+        let ext = StdPath::new(&original_filename_clone)
             .extension()
             .and_then(|s| s.to_str())
-            .unwrap_or("mp4");
-        
-        let file_stem = StdPath::new(&original_filename)
+            .unwrap_or(match media_type {
+                MediaType::Mp4 => "mp4",
+                MediaType::Png => "png",
+                MediaType::Jpeg => "jpg",
+                MediaType::Audio => "mp3",
+                MediaType::Pdf => "pdf",
+            });
+
+        let file_stem = StdPath::new(&original_filename_clone)
             .file_stem()
             .and_then(|s| s.to_str())
-            .unwrap_or("video");
+            .unwrap_or("file");
 
         let better_filename = format!("{}_{}.{}", file_stem, level_name, ext);
         let out_path = format!("uploads/{}_{}", id_clone, better_filename);
 
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<f32>();
-        
-        // Spawn de task para escutar o progresso em tempo real e atualizar o state
+
         let state_progress = state_clone.clone();
         let id_progress = id_clone.clone();
         tokio::spawn(async move {
@@ -158,7 +112,7 @@ async fn upload_mp4(State(state): State<AppState>, mut multipart: Multipart) -> 
                 if let Some(job) = state_progress.write().await.jobs.get_mut(&id_progress) {
                     if let Some(p) = job.progress {
                         if progress > p || (progress == 0.0) {
-                             job.progress = Some(progress);
+                            job.progress = Some(progress);
                         }
                     } else {
                         job.progress = Some(progress);
@@ -167,14 +121,16 @@ async fn upload_mp4(State(state): State<AppState>, mut multipart: Multipart) -> 
             }
         });
 
+        let has_progress = matches!(media_type, MediaType::Mp4 | MediaType::Audio);
+
         let result = compress_media(
-            MediaType::Mp4,
+            media_type,
             &temp_path.to_string_lossy(),
             &out_path,
             compression_level,
-            Some(tx),
-        ).await;
-
+            if has_progress { Some(tx) } else { None },
+        )
+        .await;
 
         let mut s = state_clone.write().await;
         if let Some(job) = s.jobs.get_mut(&id_clone) {
@@ -190,20 +146,17 @@ async fn upload_mp4(State(state): State<AppState>, mut multipart: Multipart) -> 
             }
         }
     });
-
-    (StatusCode::ACCEPTED, Json(json!({"id": id}))).into_response()
 }
 
-async fn upload_png(State(state): State<AppState>, mut multipart: Multipart) -> impl IntoResponse {
-    let id = Uuid::new_v4().to_string();
+async fn upload_batch(State(state): State<AppState>, mut multipart: Multipart) -> impl IntoResponse {
     let _ = create_dir_all("uploads").await;
-
     let mut compression_level: u8 = 2;
-    let mut found_file = false;
-    let mut saved_path = PathBuf::new();
-    let mut saved_filename = String::new();
-    let mut saved_original = String::new();
+    let mut jobs_started = Vec::new();
 
+    // Primeiro passamos para pegar o nível de compressão se ele vier primeiro, 
+    // ou guardamos os arquivos para processar depois.
+    // Mas Multipart em Axum é sequencial. Então vamos processar conforme vier.
+    
     while let Some(mut field) = match multipart.next_field().await {
         Ok(Some(f)) => Some(f),
         _ => None,
@@ -220,512 +173,96 @@ async fn upload_png(State(state): State<AppState>, mut multipart: Multipart) -> 
         }
 
         if name == "file" {
-            found_file = true;
-            let file_name = field.file_name().unwrap_or("image.png").to_string();
-            saved_original = file_name.clone();
-            saved_filename = file_name.clone();
+            let id = Uuid::new_v4().to_string();
+            let original_filename = field.file_name().unwrap_or("file").to_string();
+            
+            let media_type = match detect_media_type(&original_filename) {
+                Some(t) => t,
+                None => continue, // Pula arquivos não suportados silenciosamente ou tratar erro
+            };
 
-            let path = format!("uploads/{}_{}", id, file_name);
-            saved_path = PathBuf::from(&path);
+            let path = format!("uploads/{}_{}", id, original_filename);
+            let saved_path = PathBuf::from(&path);
 
             let mut disk_file = match File::create(&saved_path).await {
                 Ok(f) => f,
-                Err(e) => return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": format!("Erro ao criar arquivo: {}", e)})),
-                ).into_response(),
+                Err(_) => continue,
             };
 
-            while let Some(chunk) = match field.chunk().await {
-                Ok(c) => c,
-                Err(e) => return (
-                    StatusCode::BAD_REQUEST,
-                    Json(json!({"error": format!("Erro ao ler upload: {}", e)})),
-                ).into_response(),
-            } {
-                if let Err(e) = disk_file.write_all(&chunk).await {
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(json!({"error": format!("Erro ao escrever no disco: {}", e)})),
-                    ).into_response();
-                }
-            }
-        }
-    }
-
-    if !found_file {
-        return (StatusCode::BAD_REQUEST, Json(json!({"error": "Nenhum arquivo PNG encontrado no envio."}))).into_response();
-    }
-
-    let mut s = state.write().await;
-    s.jobs.insert(
-        id.clone(),
-        crate::state::JobStatus {
-            id: id.clone(),
-            status: "processing".to_string(),
-            progress: None,
-            error: None,
-            filename: saved_filename,
-            compressed_filename: None,
-        },
-    );
-    drop(s);
-
-    let state_clone = state.clone();
-    let id_clone = id.clone();
-    let temp_path = saved_path;
-    let original_filename = saved_original;
-    tokio::spawn(async move {
-        // Obter nome de nivel
-        let level_name = match compression_level {
-            1 => "Leve",
-            3 => "Alta",
-            4 => "Extrema",
-            _ => "Média",
-        };
-
-        // Formatar no padrão antigo ou pegar extensao original
-        let ext = StdPath::new(&original_filename)
-            .extension()
-            .and_then(|s| s.to_str())
-            .unwrap_or("png");
-        
-        let file_stem = StdPath::new(&original_filename)
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("image");
-
-        let better_filename = format!("{}_{}.{}", file_stem, level_name, ext);
-        let out_path = format!("uploads/{}_{}", id_clone, better_filename);
-
-        let result = compress_media(
-            MediaType::Png,
-            &temp_path.to_string_lossy(),
-            &out_path,
-            compression_level,
-            None,
-        ).await;
-
-        let mut s = state_clone.write().await;
-        if let Some(job) = s.jobs.get_mut(&id_clone) {
-            match result {
-                Ok(_) => {
-                    job.status = "completed".to_string();
-                    job.compressed_filename = Some(out_path);
-                }
-                Err(e) => {
-                    job.status = "error".to_string();
-                    job.error = Some(e);
-                }
-            }
-        }
-    });
-
-    (StatusCode::ACCEPTED, Json(json!({"id": id}))).into_response()
-}
-
-async fn upload_jpeg(State(state): State<AppState>, mut multipart: Multipart) -> impl IntoResponse {
-    let id = Uuid::new_v4().to_string();
-    let _ = create_dir_all("uploads").await;
-
-    let mut compression_level: u8 = 2;
-    let mut found_file = false;
-    let mut saved_path = PathBuf::new();
-    let mut saved_filename = String::new();
-    let mut saved_original = String::new();
-
-    while let Some(mut field) = match multipart.next_field().await {
-        Ok(Some(f)) => Some(f),
-        _ => None,
-    } {
-        let name = field.name().unwrap_or("").to_string();
-
-        if name == "compression_level" {
-            if let Ok(Some(chunk)) = field.chunk().await {
-                if let Ok(val_str) = std::str::from_utf8(&chunk) {
-                    compression_level = val_str.trim().parse().unwrap_or(2).clamp(1, 4);
-                }
-            }
-            continue;
-        }
-
-        if name == "file" {
-            found_file = true;
-            let file_name = field.file_name().unwrap_or("image.jpg").to_string();
-            saved_original = file_name.clone();
-            saved_filename = file_name.clone();
-
-            let path = format!("uploads/{}_{}", id, file_name);
-            saved_path = PathBuf::from(&path);
-
-            let mut disk_file = match File::create(&saved_path).await {
-                Ok(f) => f,
-                Err(e) => return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": format!("Erro ao criar arquivo: {}", e)})),
-                ).into_response(),
-            };
-
-            while let Some(chunk) = match field.chunk().await {
-                Ok(c) => c,
-                Err(e) => return (
-                    StatusCode::BAD_REQUEST,
-                    Json(json!({"error": format!("Erro ao ler upload: {}", e)})),
-                ).into_response(),
-            } {
-                if let Err(e) = disk_file.write_all(&chunk).await {
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(json!({"error": format!("Erro ao escrever no disco: {}", e)})),
-                    ).into_response();
-                }
-            }
-        }
-    }
-
-    if !found_file {
-        return (StatusCode::BAD_REQUEST, Json(json!({"error": "Nenhum arquivo JPEG encontrado no envio."}))).into_response();
-    }
-
-    let mut s = state.write().await;
-    s.jobs.insert(
-        id.clone(),
-        crate::state::JobStatus {
-            id: id.clone(),
-            status: "processing".to_string(),
-            progress: None,
-            error: None,
-            filename: saved_filename,
-            compressed_filename: None,
-        },
-    );
-    drop(s);
-
-    let state_clone = state.clone();
-    let id_clone = id.clone();
-    let temp_path = saved_path;
-    let original_filename = saved_original;
-    tokio::spawn(async move {
-        let level_name = match compression_level {
-            1 => "Leve",
-            3 => "Alta",
-            4 => "Extrema",
-            _ => "Média",
-        };
-
-        let ext = StdPath::new(&original_filename)
-            .extension()
-            .and_then(|s| s.to_str())
-            .unwrap_or("jpg");
-        
-        let file_stem = StdPath::new(&original_filename)
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("image");
-
-        let better_filename = format!("{}_{}.{}", file_stem, level_name, ext);
-        let out_path = format!("uploads/{}_{}", id_clone, better_filename);
-
-        let result = compress_media(
-            MediaType::Jpeg,
-            &temp_path.to_string_lossy(),
-            &out_path,
-            compression_level,
-            None,
-        ).await;
-
-        let mut s = state_clone.write().await;
-        if let Some(job) = s.jobs.get_mut(&id_clone) {
-            match result {
-                Ok(_) => {
-                    job.status = "completed".to_string();
-                    job.compressed_filename = Some(out_path);
-                }
-                Err(e) => {
-                    job.status = "error".to_string();
-                    job.error = Some(e);
-                }
-            }
-        }
-    });
-
-    (StatusCode::ACCEPTED, Json(json!({"id": id}))).into_response()
-}
-
-async fn upload_audio(State(state): State<AppState>, mut multipart: Multipart) -> impl IntoResponse {
-    let id = Uuid::new_v4().to_string();
-    let _ = create_dir_all("uploads").await;
-
-    let mut compression_level: u8 = 2;
-    let mut found_file = false;
-    let mut saved_path = PathBuf::new();
-    let mut saved_filename = String::new();
-    let mut saved_original = String::new();
-
-    while let Some(mut field) = match multipart.next_field().await {
-        Ok(Some(f)) => Some(f),
-        _ => None,
-    } {
-        let name = field.name().unwrap_or("").to_string();
-
-        if name == "compression_level" {
-            if let Ok(Some(chunk)) = field.chunk().await {
-                if let Ok(val_str) = std::str::from_utf8(&chunk) {
-                    compression_level = val_str.trim().parse().unwrap_or(2).clamp(1, 4);
-                }
-            }
-            continue;
-        }
-
-        if name == "file" {
-            found_file = true;
-            let file_name = field.file_name().unwrap_or("audio.mp3").to_string();
-            saved_original = file_name.clone();
-            saved_filename = file_name.clone();
-
-            let path = format!("uploads/{}_{}", id, file_name);
-            saved_path = PathBuf::from(&path);
-
-            let mut disk_file = match File::create(&saved_path).await {
-                Ok(f) => f,
-                Err(e) => return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": format!("Erro ao criar arquivo: {}", e)})),
-                ).into_response(),
-            };
-
-            while let Some(chunk) = match field.chunk().await {
-                Ok(c) => c,
-                Err(e) => return (
-                    StatusCode::BAD_REQUEST,
-                    Json(json!({"error": format!("Erro ao ler upload: {}", e)})),
-                ).into_response(),
-            } {
-                if let Err(e) = disk_file.write_all(&chunk).await {
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(json!({"error": format!("Erro ao escrever no disco: {}", e)})),
-                    ).into_response();
-                }
-            }
-        }
-    }
-
-    if !found_file {
-        return (StatusCode::BAD_REQUEST, Json(json!({"error": "Nenhum arquivo de áudio encontrado no envio."}))).into_response();
-    }
-
-    let mut s = state.write().await;
-    s.jobs.insert(
-        id.clone(),
-        crate::state::JobStatus {
-            id: id.clone(),
-            status: "processing".to_string(),
-            progress: Some(0.0),
-            error: None,
-            filename: saved_filename,
-            compressed_filename: None,
-        },
-    );
-    drop(s);
-
-    let state_clone = state.clone();
-    let id_clone = id.clone();
-    let temp_path = saved_path;
-    let original_filename = saved_original;
-    tokio::spawn(async move {
-        let level_name = match compression_level {
-            1 => "Leve",
-            3 => "Alta",
-            4 => "Extrema",
-            _ => "Média",
-        };
-
-        // Mantém a extensão correta (mp3 ou m4a) que veio
-        let ext = StdPath::new(&original_filename)
-            .extension()
-            .and_then(|s| s.to_str())
-            .unwrap_or("mp3");
-        
-        let file_stem = StdPath::new(&original_filename)
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("audio");
-
-        let better_filename = format!("{}_{}.{}", file_stem, level_name, ext);
-        let out_path = format!("uploads/{}_{}", id_clone, better_filename);
-
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<f32>();
-        
-        let state_progress = state_clone.clone();
-        let id_progress = id_clone.clone();
-        tokio::spawn(async move {
-            while let Some(progress) = rx.recv().await {
-                if let Some(job) = state_progress.write().await.jobs.get_mut(&id_progress) {
-                    if let Some(p) = job.progress {
-                        if progress > p || (progress == 0.0) {
-                             job.progress = Some(progress);
+            let mut error_occurred = false;
+            loop {
+                match field.chunk().await {
+                    Ok(Some(chunk)) => {
+                        if disk_file.write_all(&chunk).await.is_err() {
+                            error_occurred = true;
+                            break;
                         }
-                    } else {
-                        job.progress = Some(progress);
+                    }
+                    Ok(None) => break,
+                    Err(_) => {
+                        error_occurred = true;
+                        break;
                     }
                 }
             }
-        });
 
-        let result = compress_media(
-            MediaType::Audio,
-            &temp_path.to_string_lossy(),
-            &out_path,
-            compression_level,
-            Some(tx),
-        ).await;
-
-        let mut s = state_clone.write().await;
-        if let Some(job) = s.jobs.get_mut(&id_clone) {
-            match result {
-                Ok(_) => {
-                    job.status = "completed".to_string();
-                    job.compressed_filename = Some(out_path);
-                }
-                Err(e) => {
-                    job.status = "error".to_string();
-                    job.error = Some(e);
-                }
+            if error_occurred {
+                continue;
             }
-        }
-    });
 
-    (StatusCode::ACCEPTED, Json(json!({"id": id}))).into_response()
+            // Registrar Job
+            let mut s = state.write().await;
+            s.jobs.insert(
+                id.clone(),
+                crate::state::JobStatus {
+                    id: id.clone(),
+                    status: "processing".to_string(),
+                    progress: if matches!(media_type, MediaType::Mp4 | MediaType::Audio) { Some(0.0) } else { None },
+                    error: None,
+                    filename: original_filename.clone(),
+                    compressed_filename: None,
+                },
+            );
+            drop(s);
+
+            start_compression_job(
+                state.clone(),
+                id.clone(),
+                media_type,
+                saved_path,
+                original_filename,
+                compression_level,
+            ).await;
+
+            jobs_started.push(id);
+        }
+    }
+
+    if jobs_started.is_empty() {
+        return (StatusCode::BAD_REQUEST, Json(json!({"error": "Nenhum arquivo válido encontrado no envio."}))).into_response();
+    }
+
+    (StatusCode::ACCEPTED, Json(json!({"ids": jobs_started}))).into_response()
 }
 
-async fn upload_pdf(State(state): State<AppState>, mut multipart: Multipart) -> impl IntoResponse {
-    let id = Uuid::new_v4().to_string();
-    let _ = create_dir_all("uploads").await;
+async fn upload_mp4(state: State<AppState>, multipart: Multipart) -> impl IntoResponse {
+    upload_batch(state, multipart).await
+}
 
-    let mut compression_level: u8 = 2;
-    let mut found_file = false;
-    let mut saved_path = PathBuf::new();
-    let mut saved_filename = String::new();
-    let mut saved_original = String::new();
+async fn upload_png(state: State<AppState>, multipart: Multipart) -> impl IntoResponse {
+    upload_batch(state, multipart).await
+}
 
-    while let Some(mut field) = match multipart.next_field().await {
-        Ok(Some(f)) => Some(f),
-        _ => None,
-    } {
-        let name = field.name().unwrap_or("").to_string();
+async fn upload_jpeg(state: State<AppState>, multipart: Multipart) -> impl IntoResponse {
+    upload_batch(state, multipart).await
+}
 
-        if name == "compression_level" {
-            if let Ok(Some(chunk)) = field.chunk().await {
-                if let Ok(val_str) = std::str::from_utf8(&chunk) {
-                    compression_level = val_str.trim().parse().unwrap_or(2).clamp(1, 4);
-                }
-            }
-            continue;
-        }
+async fn upload_audio(state: State<AppState>, multipart: Multipart) -> impl IntoResponse {
+    upload_batch(state, multipart).await
+}
 
-        if name == "file" {
-            found_file = true;
-            let file_name = field.file_name().unwrap_or("document.pdf").to_string();
-            saved_original = file_name.clone();
-            saved_filename = file_name.clone();
-
-            let path = format!("uploads/{}_{}", id, file_name);
-            saved_path = PathBuf::from(&path);
-
-            let mut disk_file = match File::create(&saved_path).await {
-                Ok(f) => f,
-                Err(e) => return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": format!("Erro ao criar arquivo: {}", e)})),
-                ).into_response(),
-            };
-
-            while let Some(chunk) = match field.chunk().await {
-                Ok(c) => c,
-                Err(e) => return (
-                    StatusCode::BAD_REQUEST,
-                    Json(json!({"error": format!("Erro ao ler upload: {}", e)})),
-                ).into_response(),
-            } {
-                if let Err(e) = disk_file.write_all(&chunk).await {
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(json!({"error": format!("Erro ao escrever no disco: {}", e)})),
-                    ).into_response();
-                }
-            }
-        }
-    }
-
-    if !found_file {
-        return (StatusCode::BAD_REQUEST, Json(json!({"error": "Nenhum arquivo PDF encontrado no envio."}))).into_response();
-    }
-
-    let mut s = state.write().await;
-    s.jobs.insert(
-        id.clone(),
-        crate::state::JobStatus {
-            id: id.clone(),
-            status: "processing".to_string(),
-            progress: None,
-            error: None,
-            filename: saved_filename,
-            compressed_filename: None,
-        },
-    );
-    drop(s);
-
-    let state_clone = state.clone();
-    let id_clone = id.clone();
-    let temp_path = saved_path;
-    let original_filename = saved_original;
-
-    tokio::spawn(async move {
-        let level_name = match compression_level {
-            1 => "Leve",
-            3 => "Alta",
-            4 => "Extrema",
-            _ => "Média",
-        };
-
-        let ext = StdPath::new(&original_filename)
-            .extension()
-            .and_then(|s| s.to_str())
-            .unwrap_or("pdf");
-        
-        let file_stem = StdPath::new(&original_filename)
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("document");
-
-        let better_filename = format!("{}_{}.{}", file_stem, level_name, ext);
-        let out_path = format!("uploads/{}_{}", id_clone, better_filename);
-
-        let result = compress_media(
-            MediaType::Pdf,
-            &temp_path.to_string_lossy(),
-            &out_path,
-            compression_level,
-            None,
-        ).await;
-
-        let mut s = state_clone.write().await;
-        if let Some(job) = s.jobs.get_mut(&id_clone) {
-            match result {
-                Ok(_) => {
-                    job.status = "completed".to_string();
-                    job.compressed_filename = Some(out_path);
-                }
-                Err(e) => {
-                    job.status = "error".to_string();
-                    job.error = Some(e);
-                }
-            }
-        }
-    });
-
-    (StatusCode::ACCEPTED, Json(json!({"id": id}))).into_response()
+async fn upload_pdf(state: State<AppState>, multipart: Multipart) -> impl IntoResponse {
+    upload_batch(state, multipart).await
 }
 
 async fn job_status(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {

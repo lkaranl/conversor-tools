@@ -32,64 +32,6 @@
         <!-- Painel Principal -->
         <div class="glass-panel">
 
-            <!-- Seletor de Tipo de Mídia -->
-            <section class="media-type-section">
-                <label class="section-label">Tipo de Mídia</label>
-                <div class="media-type-grid" id="media-type-grid">
-                    <button class="media-card active" data-type="mp4" data-accept="video/mp4,.mp4" id="btn-mp4">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <rect x="2" y="3" width="20" height="14" rx="2" />
-                            <path d="M8 21h8M12 17v4" />
-                            <circle cx="10" cy="10" r="1" fill="currentColor" />
-                            <path d="m10 10 4-2v4l-4-2z" fill="currentColor" stroke="none" />
-                        </svg>
-                        <span class="media-type-name">MP4</span>
-                        <span class="media-type-desc">Vídeo</span>
-                    </button>
-                    <button class="media-card" data-type="audio" data-accept="audio/mpeg,audio/mp4,.mp3,.m4a"
-                        id="btn-audio">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M9 18V5l12-2v13" />
-                            <circle cx="6" cy="18" r="3" />
-                            <circle cx="18" cy="16" r="3" />
-                        </svg>
-                        <span class="media-type-name">Áudio</span>
-                        <span class="media-type-desc">MP3 / M4A</span>
-                    </button>
-                    <button class="media-card" data-type="png" data-accept="image/png,.png" id="btn-png">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <rect x="3" y="3" width="18" height="18" rx="2" />
-                            <circle cx="8.5" cy="8.5" r="1.5" />
-                            <path d="M21 15l-5-5L5 21" />
-                        </svg>
-                        <span class="media-type-name">PNG</span>
-                        <span class="media-type-desc">Imagem</span>
-                    </button>
-                    <button class="media-card" data-type="jpeg" data-accept="image/jpeg,.jpg,.jpeg" id="btn-jpeg">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <rect x="3" y="3" width="18" height="18" rx="2" />
-                            <circle cx="8.5" cy="8.5" r="1.5" />
-                            <path d="M21 15l-5-5L5 21" />
-                        </svg>
-                        <span class="media-type-name">JPEG</span>
-                        <span class="media-type-desc">Imagem</span>
-                    </button>
-                    <button class="media-card" data-type="pdf" data-accept="application/pdf,.pdf" id="btn-pdf">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                            <polyline points="14 2 14 8 20 8" />
-                            <line x1="16" y1="13" x2="8" y2="13" />
-                            <line x1="16" y1="17" x2="8" y2="17" />
-                            <polyline points="10 9 9 9 8 9" />
-                        </svg>
-                        <span class="media-type-name">PDF</span>
-                        <span class="media-type-desc">Documento</span>
-                    </button>
-                </div>
-            </section>
-
-            <div class="divider"></div>
-
             <!-- Nível de Compressão -->
             <section class="compression-section">
                 <label class="section-label">Nível de Compressão</label>
@@ -133,24 +75,21 @@
                                 <line x1="12" y1="3" x2="12" y2="15" />
                             </svg>
                         </div>
-                        <h3>Arraste seu arquivo aqui</h3>
+                        <h3>Arraste seus arquivos aqui</h3>
                         <p>ou <span class="highlight">clique para procurar</span></p>
-                        <span class="dropzone-hint" id="dropzone-hint">Aceita arquivos .mp4</span>
+                        <span class="dropzone-hint" id="dropzone-hint">Detecção automática (.mp4, .png, .jpg, .jpeg, .mp3, .m4a, .pdf)</span>
                     </div>
-                    <!-- Estado com arquivo selecionado -->
+                    <!-- Estado com arquivos selecionados -->
                     <div class="dropzone-content file-preview hidden" id="dropzone-preview">
-                        <div class="file-icon-wrap">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z" />
-                                <polyline points="14 2 14 8 20 8" />
-                                <path d="m10 11 5 3-5 3z" fill="currentColor" stroke="none" />
-                            </svg>
+                        <div id="selected-files-list" class="selected-files-list">
+                            <!-- Items will be injected here -->
                         </div>
-                        <p class="file-name" id="selected-file-name">video.mp4</p>
-                        <span class="file-size" id="selected-file-size">0 MB</span>
-                        <button class="change-file-btn" id="change-file-btn" type="button">Trocar arquivo</button>
+                        <div class="preview-actions mt-4">
+                            <button class="change-file-btn" id="add-more-btn" type="button">Adicionar mais</button>
+                            <button class="change-file-btn" id="clear-all-btn" type="button" style="color: var(--danger)">Limpar tudo</button>
+                        </div>
                     </div>
-                    <input type="file" id="file-input" accept="video/mp4,.mp4" hidden>
+                    <input type="file" id="file-input" accept=".mp4,.png,.jpg,.jpeg,.mp3,.m4a,.pdf" multiple hidden>
                 </div>
                 <div class="error-message" id="error-message"></div>
                 <button id="compress-btn" class="button primary mt-4 hidden" type="button">
@@ -160,40 +99,29 @@
                         <polyline points="8 17 12 21 16 17" />
                         <line x1="12" y1="3" x2="12" y2="21" />
                     </svg>
-                    Comprimir Agora
+                    Comprimir Todos
                 </button>
             </section>
 
 
-            <!-- Processando -->
-            <section id="processing-section" class="processing hidden">
-                <div class="spinner"></div>
-                <h3 id="status-title">Processando arquivo...</h3>
-                <div id="media-progress" class="progress-container hidden">
-                    <div class="progress-bar-wrapper">
-                        <div id="media-progress-bar" class="progress-bar-fill"></div>
+            <!-- Processando e Resultados (Unificado para Lista) -->
+            <section id="status-section" class="status-section hidden">
+                <div class="status-header">
+                    <h3 id="batch-status-title">Processando arquivos...</h3>
+                    <div class="batch-progress-container">
+                        <div class="progress-bar-wrapper">
+                            <div id="batch-progress-bar" class="progress-bar-fill"></div>
+                        </div>
+                        <span id="batch-progress-text">0/0 concluídos</span>
                     </div>
-                    <div id="progress-percent" class="progress-percent">0%</div>
                 </div>
-                <p id="status-desc" class="sub-text">O tempo depende do tamanho do arquivo.</p>
-            </section>
-
-            <!-- Resultado -->
-            <section id="result-section" class="result hidden">
-                <div class="success-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                        <polyline points="22 4 12 14.01 9 11.01" />
-                    </svg>
+                
+                <div id="jobs-list" class="jobs-list">
+                    <!-- Individual jobs progress items injected here -->
                 </div>
-                <h3>Compressão Concluída!</h3>
-                <p class="sub-text" id="final-filename">video.mp4</p>
-                <a href="#" id="download-btn" class="button primary mt-2">Baixar Arquivo Otimizado</a>
 
-                <div class="action-buttons-row mt-4" style="display: flex; gap: 10px; justify-content: center;">
-                    <button id="retry-level-btn" class="button secondary" style="flex: 1;">Tentar outro nível</button>
-                    <button id="reset-btn" class="button secondary" style="flex: 1;">Novo arquivo</button>
+                <div id="batch-actions" class="action-buttons-row mt-4 hidden" style="display: flex; gap: 10px; justify-content: center;">
+                    <button id="reset-btn" class="button secondary" style="flex: 1;">Novo Processamento</button>
                 </div>
             </section>
 
