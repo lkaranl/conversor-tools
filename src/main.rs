@@ -6,6 +6,7 @@ mod utils;
 use axum::Router;
 use std::net::SocketAddr;
 use std::time::Duration;
+use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 
 #[tokio::main]
@@ -45,9 +46,16 @@ async fn main() {
         }
     });
 
+    // Configuração de CORS para permitir requisições de qualquer origem
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
     let app = Router::new()
         .nest("/api", api::router(app_state))
-        .fallback_service(ServeDir::new("static"));
+        .fallback_service(ServeDir::new("static"))
+        .layer(cors);
 
     // Alterado para 0.0.0.0 para aceitar conexões de qualquer IP na rede
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
