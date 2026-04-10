@@ -57,9 +57,17 @@ async fn main() {
         .fallback_service(ServeDir::new("static"))
         .layer(cors);
 
-    // Alterado para 0.0.0.0 para aceitar conexões de qualquer IP na rede
+    // Define o endereço de bind
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    println!("Servidor rodando em http://{}", addr);
+    
+    // Tenta encontrar o IP real da rede local para o log ficar mais amigável
+    let display_ip = local_ip_address::local_ip()
+        .map(|ip| ip.to_string())
+        .unwrap_or_else(|_| "localhost".to_string());
+
+    println!("🚀 Conversor-Tools iniciado!");
+    println!("🌍 Rede Local: http://{}:3000", display_ip);
+    println!("💻 Local:      http://localhost:3000");
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
